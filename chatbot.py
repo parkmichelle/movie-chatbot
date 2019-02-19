@@ -26,7 +26,8 @@ class Chatbot:
       # Stores how many user ratings we processed from the user so far
       self.num_user_ratings = 0
 
-      # Stores how many user ratings we processed from the user so far
+      # Michelle
+      # Stores user ratings, where a 1 in index i is a positive rating for movie i
       self.user_ratings = np.zeros(len(self.titles))
 
       # Michelle 
@@ -153,6 +154,9 @@ class Chatbot:
       #############################################################################
       return response
 
+    # Michelle:
+    # Updates user ratings for given movie titles with given sentiment,
+    # also increases num_user_ratings appropriately
     def update_user_ratings(self, titles, sentiment_score):
         for title in titles:
             movie_indexes = self.find_movies_by_title(title)
