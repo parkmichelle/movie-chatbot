@@ -122,29 +122,28 @@ class Chatbot:
         response = "I processed {} in creative mode!!".format(line)
       else:
         input_titles = self.extract_titles(line)
+        # Didn't find movie in input
         if not input_titles:
-            # Didn't find movie in input
             response = "Sorry, I didn't catch that. Tell me about a movie you have seen."
+        # Found a movie in input, process it
         else:
-            # Found a movie in input
             input_sentiment = self.extract_sentiment(line)
+            # Neutral sentiment found, ask for more emotional sentence
             if input_sentiment == 0:
-                # Neutral sentiment found, ask for more emotional sentence
                 response = "I can't tell how you felt about {}. Tell me more about it.".format(input_titles)
+            # Positive or negative sentiment found, process it
             else:
-                # Positive or negative sentiment found
-                # Update user ratings for that movie with sentiment
                 self.update_user_ratings(input_titles, input_sentiment)
+                # If have enough ratings, give recommendations TODO: update so give rec one at a time
                 if self.num_user_ratings >= self.ratings_threshold:
-                    # If have enough ratings, give recommendations TODO: update so give rec one at a time
                     recommendations = self.recommend(self.user_ratings, self.ratings, 5)
                     response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
                         "liked" if input_sentiment > 0 else "didn't like", 
                         input_titles,
                         recommendations)
                     self.num_user_ratings = 0
+                # If don't have enough ratings, ask for more
                 else:
-                    # If don't have enough ratings, ask for more
                     response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
                         "liked" if input_sentiment > 0 else "didn't like", 
                         input_titles)
@@ -423,13 +422,15 @@ class Chatbot:
       # TODO: Compute cosine similarity between the two vectors.
       #############################################################################
       similarity = 0
+      # TODO: replace with np.linalg.norm, idk why but that doesn't give me the correct answers for
+      # sanity check like the function below does, but I think this is getting in the way of speed
       def norm(arr):
         squaredSum = 0
         for x in arr:
           squaredSum += (x * x)
         denom = math.sqrt(squaredSum) 
         if denom == 0:
-            print("zero denom")
+            # should return arr because denom only 0 if arr is all 0s
             return arr
         result = []
         for x in arr:
