@@ -27,10 +27,12 @@ def assertNumpyArrayEquals(givenValue, correctValue, failureMessage):
 
 def assertListEquals(givenValue, correctValue, failureMessage, orderMatters=True):
     try:
-        if not orderMatters:
-            givenValue = set(givenValue)
-            correctValue = set(correctValue)
-        assert givenValue == correctValue
+        if orderMatters:
+            assert givenValue == correctValue
+            return True
+        givenValueSet = set(givenValue)
+        correctValueSet = set(correctValue)
+        assert givenValueSet == correctValueSet
         return True
     except Exception:
         print(failureMessage)
@@ -133,7 +135,7 @@ def test_extract_sentiment():
     ) and assertEquals(
         chatbot.extract_sentiment("I didn't enjoy \"Titanic (1997)\"."),
         -1,
-        "Incorrect output for extract_sentiment(\'I didn't enjoy  \"Titanic (1997)\".\)"
+        "Incorrect output for extract_sentiment(\'I didn't enjoy  \"Titanic (1997)\"\'.)"
     ):
         print('extract_sentiment() sanity check passed!')
     print()
@@ -143,9 +145,15 @@ def test_extract_sentiment_for_movies():
     print("Testing test_extract_sentiment_for_movies() functionality...")
     chatbot = Chatbot(True)
     if assertListEquals(
-        chatbot.extract_sentiment_for_movies("I liked both \"Titanic (1997)\" and \"Ex Machina\"."),
-        [("Titanic (1997)", 1), ("Ex Machina", 1)],
-        "Incorrect output for test_extract_sentiment_for_movies(\"I liked both \"Titanic (1997)\" and \"Ex Machina\".)\""
+        chatbot.extract_sentiment_for_movies("I liked both \"I, Robot\" and \"Ex Machina\"."),
+        [("I, Robot", 1), ("Ex Machina", 1)],
+        "Incorrect output for test_extract_sentiment_for_movies(\"I liked both \"I, Robot\" and \"Ex Machina\".)\"",
+        orderMatters=False
+    ) and assertListEquals(
+        chatbot.extract_sentiment_for_movies("I liked \"I, Robot\" but not \"Ex Machina\"."),
+        [("I, Robot", 1), ("Ex Machina", -1)],
+        "Incorrect output for test_extract_sentiment_for_movies(\"I liked \"I, Robot\" but not \"Ex Machina\".)\"",
+        orderMatters=False
     ):
         print('extract_sentiment_for_movies() sanity check passed!')
     print()
@@ -163,6 +171,22 @@ def test_find_movies_closest_to_title():
         orderMatters=False
     ):
         print('find_movies_closest_to_title() sanity check passed!')
+    print()
+    return True
+
+def test_disambiguate():
+    print("Testing disambiguate() functionality...")
+    chatbot = Chatbot(True)
+
+    clarification = "1997"
+    candidates = [1359, 2716]
+    if assertListEquals(
+        chatbot.disambiguate(clarification, candidates),
+        [1359],
+        "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
+        orderMatters=False
+    ):
+        print('disambiguate() sanity check passed!')
     print()
     return True
 
@@ -203,6 +227,7 @@ def main():
     if testing_creative:
         test_find_movies_closest_to_title()
         test_extract_sentiment_for_movies()
+        test_disambiguate()
 
 if __name__ == '__main__':
     main()
