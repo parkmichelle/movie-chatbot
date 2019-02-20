@@ -425,10 +425,7 @@ class Chatbot:
       # TODO: replace with np.linalg.norm, idk why but that doesn't give me the correct answers for
       # sanity check like the function below does, but I think this is getting in the way of speed
       def norm(arr):
-        squaredSum = 0
-        for x in arr:
-          squaredSum += (x * x)
-        denom = math.sqrt(squaredSum) 
+        denom = np.linalg.norm(arr)
         if denom == 0:
             # should return arr because denom only 0 if arr is all 0s
             return arr
