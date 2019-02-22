@@ -6,6 +6,7 @@ import movielens
 
 import numpy as np
 import math
+from PorterStemmer import PorterStemmer
 
 class Chatbot:
     """Simple class to implement the chatbot for PA 6."""
@@ -33,6 +34,8 @@ class Chatbot:
       # Michelle 
       # Number of user ratings we require before recommending movies
       self.ratings_threshold = 5
+      #ken
+      self.p = PorterStemmer()
 
       # Michelle 
       # Map {title : (date, index into self.titles)}, use to search for movie indexes
