@@ -469,16 +469,19 @@ class Chatbot:
       #######################################################################################
       # Follows pseudocode in recommendation slides
       scores = []
+      user_movies = []
+      for movie_idx in range(len(ratings_matrix) ):
+        if user_ratings[movie_idx]: user_movies.append(movie_idx)
+
       for movie_i in range(0, len(ratings_matrix)):
           # Don't want to recommend movie that user already rated
           if user_ratings[movie_i] != 0:
               continue
           movie_i_ratings = ratings_matrix[movie_i]
           temp = []
-          for movie_j in range(0, len(ratings_matrix)):
+          for movie_j in user_movies:
               # TODO: Don't want to compare the same movie to each other? Not super sure about this one
-              if movie_i == movie_j or user_ratings[movie_j] == 0:
-                  continue
+              if movie_i == movie_j :continue
               movie_j_ratings = ratings_matrix[movie_j]
               s_ij = self.similarity(movie_i_ratings, movie_j_ratings)
               r_xj = user_ratings[movie_j]
