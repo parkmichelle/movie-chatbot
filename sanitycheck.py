@@ -217,12 +217,13 @@ def main():
     args = parser.parse_args()
     testing_creative = args.creative
 
-    test_extract_titles()
-    test_find_movies_by_title()
-    test_extract_sentiment()
-    test_recommend()
-    test_binarize()
-    test_similarity() # TODO: broken when run with starter code
+    # test_extract_titles()
+    # test_find_movies_by_title()
+    # test_extract_sentiment()
+    # test_recommend()
+    # test_binarize()
+    # test_similarity() # TODO: broken when run with starter code
+    test_extract_sentiment_for_movies()
 
     if testing_creative:
         test_find_movies_closest_to_title()
