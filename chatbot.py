@@ -3,86 +3,100 @@
 # Original Python code by Ignacio Cases (@cases)
 ######################################################################
 import movielens
-
+import re
 import numpy as np
+
 import math
 from PorterStemmer import PorterStemmer
 from string import punctuation
-import  re
 
 
 class Chatbot:
     """Simple class to implement the chatbot for PA 6."""
 
     def __init__(self, creative=False):
-      # The chatbot's default name is `moviebot`. Give your chatbot a new name.
-      self.name = 'MasterBot'
+        # The chatbot's default name is `moviebot`. Give your chatbot a new name.
+        self.name = 'MasterBot'
 
-      self.creative = creative
+        self.creative = creative
 
-      # This matrix has the following shape: num_movies x num_users
-      # The values stored in each row i and column j is the rating for
-      # movie i by user j
-      self.titles, ratings = movielens.ratings()
-      self.sentiment = movielens.sentiment()
-      #ken
-      self.p = PorterStemmer()
-      new_map = {}
-      for word in self.sentiment:
-          stemmed_word = self.p.stem(word)
-          new_map[stemmed_word] = self.sentiment[word]
-      self.sentiment = new_map
-      self.all_titles_lower= set()
-      self.prev_movie = None # stores the previous movie if you did not specify the sentiment
-      #end ken
+        # Ty
+        # All the things we need to keep track of previous states of what the users have inputed
+        self.clarification = None
+        self.saved_movie = None
+        self.saved_sentiment = None
+        self.FLAG_remember_last_movie = False
+        self.FLAG_remember_last_sentiment = False
+        self.NUM_FLAG_asked_for_clarification = 0
 
-      # Michelle 
-      # Stores how many user ratings we processed from the user so far
-      self.num_user_ratings = 0
+        # Ty
+        # we never reset these two below once they are initiated
+        self.COUNT_invalid_user_resp = 1
+        self.LIST_movies_user_already_inputted = []
 
-      # Michelle
-      # Stores user ratings, where a 1 in index i is a positive rating for movie i
-      self.user_ratings = np.zeros(len(self.titles))
+        # This matrix has the following shape: num_movies x num_users
+        # The values stored in each row i and column j is the rating for
+        # movie i by user j
+        self.titles, ratings = movielens.ratings()
+        self.sentiment = movielens.sentiment()
+        # ken
+        self.p = PorterStemmer()
+        new_map = {}
+        for word in self.sentiment:
+            stemmed_word = self.p.stem(word)
+            new_map[stemmed_word] = self.sentiment[word]
+        self.sentiment = new_map
+        self.all_titles_lower = set()
+        self.prev_movie = None  # stores the previous movie if you did not specify the sentiment
+        # end ken
 
-      # Michelle 
-      # Number of user ratings we require before recommending movies
-      self.ratings_threshold = 5
+        # Michelle
+        # Stores how many user ratings we processed from the user so far
+        self.num_user_ratings = 0
 
-      # Michelle 
-      # Map {title : (date, index into self.titles)}, use to search for movie indexes
-      self.title_index = dict()
+        # Michelle
+        # Stores user ratings, where a 1 in index i is a positive rating for movie i
+        self.user_ratings = np.zeros(len(self.titles))
+
+        # Michelle
+        # Number of user ratings we require before recommending movies
+        self.ratings_threshold = 5
+
+        # Michelle
+        # Map {title : (date, index into self.titles)}, use to search for movie indexes
+        self.title_index = dict()
     #   for item in self.titles:
     #       print(item)
-      for index, title_genre in enumerate(self.titles):
-          # Extract title and date
+        for index, title_genre in enumerate(self.titles):
+            # Extract title and date
 
-          title_str = title_genre[0]
-          title_date_tuple = self.extract_title_date(title_str)
-          title = self.format_title(title_date_tuple[0])
-          other_names = self.findStringWithinPunc( title, "(", ")")
-          orig_title = title 
-          if len(other_names) > 0:
-            paran_pos = title.find("(")
-            orig_title = title[:paran_pos].strip()
-            for name in other_names:
-                self.all_titles_lower.add(name.lower().strip())
-          self.all_titles_lower.add(orig_title.lower())
-          date = title_date_tuple[1]
-          # Add title : (date, index) to map
-          if title in self.title_index:
-              self.title_index[title].append((date, index))
-          else:
-              self.title_index[title] = [(date, index)]
+            title_str = title_genre[0]
+            title_date_tuple = self.extract_title_date(title_str)
+            title = self.format_title(title_date_tuple[0])
+            other_names = self.findStringWithinPunc(title, "(", ")")
+            orig_title = title
+            if len(other_names) > 0:
+                paran_pos = title.find("(")
+                orig_title = title[:paran_pos].strip()
+                for name in other_names:
+                    self.all_titles_lower.add(name.lower().strip())
+            self.all_titles_lower.add(orig_title.lower())
+            date = title_date_tuple[1]
+            # Add title : (date, index) to map
+            if title in self.title_index:
+                self.title_index[title].append((date, index))
+            else:
+                self.title_index[title] = [(date, index)]
     #   print(self.all_titles_lower)
-      #############################################################################
-      # TODO: Binarize the movie ratings matrix.                                  #
-      #############################################################################
+        #############################################################################
+        # TODO: Binarize the movie ratings matrix.                                  #
+        #############################################################################
 
-      # Binarize the movie ratings before storing the binarized matrix.
-      self.ratings = self.binarize(ratings)
-      #############################################################################
-      #                             END OF YOUR CODE                              #
-      #############################################################################
+        # Binarize the movie ratings before storing the binarized matrix.
+        self.ratings = self.binarize(ratings)
+        #############################################################################
+        #                             END OF YOUR CODE                              #
+        #############################################################################
 
     #############################################################################
     # 1. WARM UP REPL                                                           #
@@ -147,10 +161,29 @@ class Chatbot:
 
         else:
             input_titles = self.extract_titles(line)
+            # User already reported a movie, and we need to pass in clarification for movie or sentiment
+            if self.FLAG_remember_last_movie:
+                input_titles = self.saved_movie
             # Didn't find movie in input
             if not input_titles:
-                response = "Sorry, I didn't catch that. Tell me about a movie you have seen."
-            # Found a movie in input, process it
+                return "Sorry, I wasn't able to figure out what movie you're talking about."
+
+            # not in database
+            matching_movies = self.find_movies_by_title(input_titles[0])
+            if  len (matching_movies) < 1:
+                '''
+                self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
+                if self.spellcheck:
+                '''
+                if len(self.LIST_movies_user_already_inputted) == 0:
+                    for title in input_titles:
+                        self.LIST_movies_user_already_inputted.append(title)
+                    return "Hey, sorry, but I don't think I've heard of that movie before, so I wouldn't be able to recommend another movie based on that one (sad face)...\n Do you have another movie you want to talk about?"
+                if bool(set(self.LIST_movies_user_already_inputted).intersection(set(input_titles))):
+                    self.COUNT_invalid_user_resp += 1
+                    return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
+                return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
+
             else:
                 line_for_sentiment = None
                 line_lower = line.lower()
@@ -158,18 +191,42 @@ class Chatbot:
                     line_for_sentiment = line_lower.replace(word.lower(), "")
                 input_sentiment = self.extract_sentiment(line_for_sentiment)
                 # Neutral sentiment found, ask for more emotional sentence
-
+                if self.saved_sentiment is not None:
+                    if self.saved_sentiment != 0:
+                        input_sentiment = self.saved_sentiment
                 if input_sentiment == 0:
                     response = "I can't tell how you felt about {}. Tell me more about it.".format(
                         input_titles)
-                    self.prev_movie = input_titles
-                    # print("now: ".format(self.prev_movie))
+                    self.FLAG_remember_last_movie = True
+                    self.saved_movie = input_titles
+
+                # Tries to disambugate, if it hasn't been
+                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 1:
+                    indexes = matching_movies
+                    self.NUM_FLAG_asked_for_clarification += 1
+                    self.FLAG_remember_last_movie = True
+
+                    self.saved_movie = input_titles
+                    self.saved_sentiment = input_sentiment
+                    return "I found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
+
                 # Positive or negative sentiment found, process it
                 else:
+                    if self.NUM_FLAG_asked_for_clarification == 1:
+                        self.NUM_FLAG_asked_for_clarification += 1
+                        self.disambiguate(
+                            line, matching_movies)
                     self.update_user_ratings(input_titles, input_sentiment)
                     # If have enough ratings, give recommendations TODO: update so give rec one at a time
-                    if self.num_user_ratings >= self.ratings_threshold:
-                        recommendations = self.recommend(self.user_ratings, self.ratings, 5)
+                    if input_sentiment == 0:
+                        response = "I can't tell how you felt about {}. Tell me more about it.".format(
+                            input_titles)
+                        self.FLAG_remember_last_movie = True
+                        self.saved_movie = input_titles
+
+                    elif self.num_user_ratings >= self.ratings_threshold:
+                        recommendations = self.recommend(
+                            self.user_ratings, self.ratings, 5)
                         response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
                             "liked" if input_sentiment > 0 else "didn't like",
                             input_titles,
@@ -180,6 +237,12 @@ class Chatbot:
                         response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
                             "liked" if input_sentiment > 0 else "didn't like",
                             input_titles)
+                        self.clarification = None
+                        self.saved_movie = None
+                        self.saved_sentiment = None
+                        self.FLAG_remember_last_movie = False
+                        self.FLAG_remember_last_sentiment = False
+                        self.NUM_FLAG_asked_for_clarification = 0
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -216,32 +279,35 @@ class Chatbot:
         :returns: list of movie titles that are potentially in the text
         """
         result = []
-        #TODO: Add more to the regex- both positive and negative
-        #*****************
+        # TODO: Add more to the regex- both positive and negative
+        # *****************
         text_lower = text.lower()
-        if text_lower.find("\"") != -1: #if there are quotes, get all the movies in the quotes
-            result = self.findStringWithinPunc(text, "\"","\"" )
-        else: #use substrings in the text to get possible movies
+        # if there are quotes, get all the movies in the quotes
+        if text_lower.find("\"") != -1:
+            result = self.findStringWithinPunc(text, "\"", "\"")
+        else:  # use substrings in the text to get possible movies
             text_lower = text_lower.strip(punctuation)
             arr = text_lower.split(" ")
             for i in range(len(arr)):
-                for j in range( i, len(arr) ):
-                    temp_title = " ".join(arr[i : j+1 ])
+                for j in range(i, len(arr)):
+                    temp_title = " ".join(arr[i: j+1])
                     title = self.format_title(temp_title)
                     if title in self.all_titles_lower:
                         result.append(temp_title)
             if (len(result) > 0):
-                result = [max(result) ] # want to take the longest substring
+                result = [max(result)]  # want to take the longest substring
 
-        if len(result) == 0: #use regex if we were not able to extract a movie from what they gave
+        if len(result) == 0:  # use regex if we were not able to extract a movie from what they gave
             regex = '(?:(?:enjoye?|like|love|saw|hate)[d]? +["]?([\w+ \(\)]*)["]?)|(?:[I|i]? ?(?:thought|saw|think)? ?["]?([\w+ \(\)]*)["]? +(?:was|start)[ed]?[s]?)|(?:"([\w+ \(\)]*)")'
             matches = re.search(regex, text)
             number_of_groups = 3
             if matches != None:
-                for i in range(1,number_of_groups +1):
-                    if matches.group(i) != None: result.append(matches.group(i).strip())
+                for i in range(1, number_of_groups + 1):
+                    if matches.group(i) != None:
+                        result.append(matches.group(i).strip())
         return result
-    #This method finds a strings within 2 punctuations and returns an array of those strings. You need to specify the start and end punctuations
+    # This method finds a strings within 2 punctuations and returns an array of those strings. You need to specify the start and end punctuations
+
     def findStringWithinPunc(self, text, start_punc, end_punc):
         result = []
         text = text.replace("a.k.a.", "")
@@ -256,10 +322,10 @@ class Chatbot:
             openQuoteIndex = text.find(start_punc)
         return result
 
-
     # Michelle: Helper function
     # Does article formatting for movie title (The Apple => Apple, The)
     # Unaware of dates in title, so process that before calling this
+
     def format_title(self, title):
         # Returns true if the word is an article in English
         def is_article(word):
@@ -281,16 +347,18 @@ class Chatbot:
     def extract_title_date(self, input_title):
         date_start = input_title.find("(")
         while date_start != -1:
-            title = input_title[:date_start - 1]  # -1 to get rid of space before "("
+            # -1 to get rid of space before "("
+            title = input_title[:date_start - 1]
             date = input_title[date_start + 1:date_start + 5]
-            #adding this line to check if the date is actually a number
+            # adding this line to check if the date is actually a number
             if self.checkIfIsNumber(date):
                 return (title, date)
                 break
             date_start = input_title.find("(", date_start+1)
         return (input_title, None)
-    def checkIfIsNumber(self,str):
-        try: 
+
+    def checkIfIsNumber(self, str):
+        try:
             float(str)
             return True
         except ValueError:
@@ -318,16 +386,17 @@ class Chatbot:
         target_date = title_date[1]
         matches = []
         target_title_lower = target_title.lower()
-        target_title_lower = re.sub(r'[^\w\s]','',target_title_lower)
+        target_title_lower = re.sub(r'[^\w\s]', '', target_title_lower)
         # Find target in index
         for key in self.title_index:
             key_lower = key.lower()
             if target_title_lower == key_lower:
-                for item in self.title_index[key]: #multiple titles have different years, so add all of them
+                # multiple titles have different years, so add all of them
+                for item in self.title_index[key]:
                     matches.append(item)
                 continue
-            #this for creative part 17 to make sure we puctuation does not affect matching the strings
-            key_temp = re.sub(r'[^\w\s]','',key_lower)
+            # this for creative part 17 to make sure we puctuation does not affect matching the strings
+            key_temp = re.sub(r'[^\w\s]', '', key_lower)
             key_arr = key_temp.split(" ")
             key_arr = [word.strip() for word in key_arr]
             all_words_present = True
@@ -337,8 +406,9 @@ class Chatbot:
                 if word_item not in key_arr:
                     all_words_present = False
                     break
-            if not all_words_present: continue
-            for item in self.title_index[key]: # if all words 
+            if not all_words_present:
+                continue
+            for item in self.title_index[key]:  # if all words
                 matches.append(item)
         # if target_title in self.title_index:
         #     print("Found the title").re
@@ -377,12 +447,13 @@ class Chatbot:
         :returns: a numerical value for the sentiment of the text
         """
         text = text.replace('"', "")
-        
-        text = [ self.p.stem(word) for word in text.split(" ")]
+
+        text = [self.p.stem(word) for word in text.split(" ")]
         text = ' '.join(text)
         pos_count = 0
         neg_count = 0
-        negation_words = ["not", "didn't", "never"]  # TODO: might need to expand this
+        # TODO: might need to expand this
+        negation_words = ["not", "didn't", "never"]
         should_flip = False
         # TODO: split by punctuation too, use nltk if piazza post answered, also check for use of porterstemmer
         for word in text.split(" "):
@@ -399,11 +470,13 @@ class Chatbot:
                     neg_count += 1
                 else:
                     # shouldn't reach here but just in case
-                    print("ERROR, need to handle. Got new sentiment: " + self.sentiment[word])
+                    print("ERROR, need to handle. Got new sentiment: " +
+                          self.sentiment[word])
         diff = pos_count - neg_count
-        if diff == 0: 
-            for word in negation_words: # TODO:  need to check this
-                if word in text: return -1
+        if diff == 0:
+            for word in negation_words:  # TODO:  need to check this
+                if word in text:
+                    return -1
             result = 0  # neutral
         elif diff > 0:
             result = 1  # positive
@@ -429,8 +502,8 @@ class Chatbot:
         """
         result = []
         # text = text.lower()
-        all_movies = self.findStringWithinPunc( text, "\"", "\"")
-        indices = [ text.find(movie) for movie in all_movies]
+        all_movies = self.findStringWithinPunc(text, "\"", "\"")
+        indices = [text.find(movie) for movie in all_movies]
         start = 0
         before_sentiment = 0
         movie_to_sentiment = {}
@@ -441,14 +514,14 @@ class Chatbot:
             sentiment2 = 0
             sentiment_final = 0
             if i + 1 < len(all_movies):
-                txt2 = text[end_movie_name_idx : indices[i+1]]
+                txt2 = text[end_movie_name_idx: indices[i+1]]
                 sentiment2 = self.extract_sentiment(txt2)
-            else:#at the end
-                txt2 = text[end_movie_name_idx: ]
+            else:  # at the end
+                txt2 = text[end_movie_name_idx:]
                 sentiment2 = self.extract_sentiment(txt2)
-            if sentiment1 != 0: 
+            if sentiment1 != 0:
                 sentiment_final = sentiment1
-            elif sentiment2 != 0 :
+            elif sentiment2 != 0:
                 sentiment_final = sentiment2
             else:
                 sentiment_final = before_sentiment
@@ -457,16 +530,15 @@ class Chatbot:
             movie_to_sentiment[all_movies[i]] = sentiment_final
             for item in movie_to_sentiment:
                 if movie_to_sentiment[item] == 0:
-                    movie_to_sentiment[item] = before_sentiment #update before sentiment for all other movies
+                    # update before sentiment for all other movies
+                    movie_to_sentiment[item] = before_sentiment
             start = end_movie_name_idx
-            
+
         for item in movie_to_sentiment:
-            result.append( (item, movie_to_sentiment[item]))
+            result.append((item, movie_to_sentiment[item]))
         return result
 
-
-
-
+        # Ty
 
     def find_movies_closest_to_title(self, title, max_distance=3):
         """Creative Feature: Given a potentially misspelled movie title,
@@ -486,8 +558,37 @@ class Chatbot:
         :param max_distance: the maximum edit distance to search for
         :returns: a list of movie indices with titles closest to the given title and within edit distance max_distance
         """
+        title_date = self.extract_title_date(title)
+        target_title = self.format_title(title_date[0])
+        matches = []
 
-        pass
+        # Find target in index
+        for key in self.title_index:
+            editDistance = self.Modified_MinEditDis(target_title.lower(), key.lower(), len(
+                target_title), len(key), max_distance)
+            if editDistance <= max_distance:
+                for tuple in self.title_index[key]:
+                    matches.append((tuple[1], editDistance))
+        matches.sort(key=lambda tup: tup[1])
+        # Gets the matches with the lowest edit distance (if tied, return them all)
+        ret = []
+        for match in matches:
+            if match[1] == matches[0][1]:  # whether it tied with the lowest distance
+                ret.append(match[0])  # grabs index
+        return ret
+
+    # helper Function: finds the min edit distance, as long as it's less than our max allowed
+    def Modified_MinEditDis(self, wordA, wordB, a, b, maxD, currentD=0):
+        if currentD > maxD + 1:
+            return maxD + 1000
+        if a == 0:
+            return b
+        if b == 0:
+            return a
+        if wordA[a - 1] == wordB[b - 1]:
+            return self.Modified_MinEditDis(wordA, wordB, a - 1, b - 1, maxD, currentD)
+        currentD += 1
+        return 1 + min(self.Modified_MinEditDis(wordA, wordB, a, b - 1, maxD, currentD), self.Modified_MinEditDis(wordA, wordB, a - 1, b, maxD, currentD), self.Modified_MinEditDis(wordA, wordB, a - 1, b - 1, maxD, currentD))
 
     def disambiguate(self, clarification, candidates):
         """Creative Feature: Given a list of movies that the user could be talking about
@@ -508,7 +609,32 @@ class Chatbot:
         :param candidates: a list of movie indices
         :returns: a list of indices corresponding to the movies identified by the clarification
         """
-        pass
+
+        # 2 cases: diff years same movie, matching more things in title
+
+        # case 1: different dates but at least one has the same title
+        title_str = self.titles[candidates[0]]
+        title_date_tuple = self.extract_title_date(title_str[0])
+        title = self.format_title(title_date_tuple[0])
+        possibleIndexes = [x[1] for x in self.title_index[title]]
+        ret = []
+        # if there are many movies with the same titles (the intersection has more than 1)
+        if len(set(possibleIndexes).intersection(set(candidates))) > 1:
+            for val in self.title_index[title]:
+                if val[0] == clarification:
+                    ret.append(val[1])
+            return ret
+
+        # case 2: more info on movie title and comparison
+        regexp = re.compile(clarification)
+        for i in candidates:
+            title_str = self.titles[i]
+            title_date_tuple = self.extract_title_date(title_str[0])
+            title = self.format_title(title_date_tuple[0])
+            if regexp.search(title):
+                for val in self.title_index[title]:
+                    ret.append(val[1])
+        return ret
 
     #############################################################################
     # 3. Movie Recommendation helper functions                                  #
@@ -563,7 +689,7 @@ class Chatbot:
         similarity = 0
         # TODO: replace with np.linalg.norm, idk why but that doesn't give me the correct answers for
         # sanity check like the function below does, but I think this is getting in the way of speed
-
+        '''
         def norm(arr):
             denom = np.linalg.norm(arr)
             if denom == 0:
@@ -573,12 +699,14 @@ class Chatbot:
             for x in arr:
                 result.append(x/denom)
             return result
-
-        similarity = np.dot(norm(u), norm(v))
+        '''
+        similarity = np.dot(u, v)
+        if similarity == 0:
+            return 0
+        return similarity / np.linalg.norm(u**2) / np.linalg.norm(v**2)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
-        return similarity
 
     def recommend(self, user_ratings, ratings_matrix, k=10, creative=False):
         """Generate a list of indices of movies to recommend using collaborative filtering.
@@ -661,7 +789,8 @@ class Chatbot:
         Consider adding to this description any information about what your chatbot
         can do and how the user can interact with it.
         """
-        return """
+        return  "TODO"
+        """
       Your task is to implement the chatbot as detailed in the PA6 instructions.
       Remember: in the starter mode, movie names will come in quotation marks and
       expressions of sentiment will be simple!
