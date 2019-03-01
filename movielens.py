@@ -41,7 +41,7 @@ def ratings(src_filename=RATINGS_FILE, delimiter='%', header=False, quoting=csv.
 
 
 def titles(src_filename=MOVIES_FILE, delimiter='%', header=False, quoting=csv.QUOTE_MINIMAL):
-    with open(src_filename) as f:
+    with open(src_filename, encoding='utf-8') as f:
         reader = csv.reader(f, delimiter=delimiter, quoting=quoting)
         if header:
             next(reader)

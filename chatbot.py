@@ -393,7 +393,7 @@ class Chatbot:
             if target_title_lower == key_lower:
                 # multiple titles have different years, so add all of them
                 for item in self.title_index[key]:
-                    matches.append(item)
+                    matches.append(item) # item is (index, date)
                 continue
             # this for creative part 17 to make sure we puctuation does not affect matching the strings
             key_temp = re.sub(r'[^\w\s]', '', key_lower)
@@ -447,27 +447,38 @@ class Chatbot:
         :returns: a numerical value for the sentiment of the text
         """
         text = text.replace('"', "")
-
         text = [self.p.stem(word) for word in text.split(" ")]
         text = ' '.join(text)
         pos_count = 0
         neg_count = 0
-        # TODO: might need to expand this
-        negation_words = ["not", "didn't", "never"]
+        negation_words = [self.p.stem(word) for word 
+                in ["not", "didn\'t", "never", "don\'t", "dont", "didnt"]]
+        emphasize_words = [self.p.stem(word) for word 
+                in ["really", "so", "very", "extremely", "seriously"]]
         should_flip = False
-        # TODO: split by punctuation too, use nltk if piazza post answered, also check for use of porterstemmer
+        should_emphasize = False
+        arousal = 1
         for word in text.split(" "):
+            print(word)
             if word in negation_words:
                 should_flip = True
+            elif word in emphasize_words and not should_flip: # don't catch "don't really like"
+                should_emphasize = True
+                arousal = 2
+                print("emphasized")
             elif word in self.sentiment:
                 s = self.sentiment[word]
                 if should_flip:
                     s = 'pos' if s == 'neg' else 'neg'
                     should_flip = False
                 if s == 'pos':
-                    pos_count += 1
+                    pos_count += arousal
+                    if should_emphasize:
+                        arousal = 1
                 elif s == 'neg':
-                    neg_count += 1
+                    neg_count += arousal
+                    if should_emphasize:
+                        arousal = 1
                 else:
                     # shouldn't reach here but just in case
                     print("ERROR, need to handle. Got new sentiment: " +
@@ -479,9 +490,10 @@ class Chatbot:
                     return -1
             result = 0  # neutral
         elif diff > 0:
-            result = 1  # positive
+            result = diff if diff <= 2 else 2 # positive
         else:
-            result = -1  # negative
+            result = diff if diff >= -2 else -2 # positive
+        print(result)
         return result
 
     def extract_sentiment_for_movies(self, text):
