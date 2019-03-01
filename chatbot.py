@@ -66,6 +66,20 @@ class Chatbot:
         # Number of user ratings we require before recommending movies
         self.ratings_threshold = 5
 
+        arousal_added = ["amazing", "awesome", "incredible"] # words that aren't in file that should be, manual add
+        fname = "deps/final.txt"
+        fin = open(fname)
+        self.arousal_dict = {}
+        for line in fin:
+            arr = line.split(":")
+            if (len(arr) < 3):
+                continue
+            word = arr[0].strip()
+            self.arousal_dict[word] = float(arr[2].strip())
+        fin.close()
+        for word in arousal_added:
+            self.arousal_dict[word] = 0.8
+
         # Michelle
         # Map {title : (date, index into self.titles)}, use to search for movie indexes
         self.title_index = dict()
@@ -142,7 +156,6 @@ class Chatbot:
         self.NUM_FLAG_asked_for_clarification = 0
         self.FLAG_expecting_clarification = False
 
-<<<<<<< HEAD
     def printFlags(self):
         print("CLARIFICATION", self.clarification)
         print("saved movie", self.saved_movie)
@@ -152,8 +165,6 @@ class Chatbot:
         print("number of times asked for clarification", "", self.NUM_FLAG_asked_for_clarification)
         print("expecting clarification?", self.FLAG_expecting_clarification)
 
-=======
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
         This is the method that is called by the REPL loop directly with user input.
@@ -225,8 +236,8 @@ class Chatbot:
                     return "Hey, sorry, but I don't think I've heard of that movie before, so I wouldn't be able to recommend another movie based on that one (sad face)...\n Do you have another movie you want to talk about?"
                 if bool(set(self.LIST_movies_user_already_inputted).intersection(set(input_titles))):
                     self.COUNT_invalid_user_resp += 1
-                    return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
-                return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
+                    return "Ugh not to be mean but I told you this before... like {} times...I haven\'t heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
+                return "Hey, this is also a movie I haven\'t heard before... My knowledge box doesn't go that far unfortunately..."
             # yes we can find it
             else:
                 line_for_sentiment = None
@@ -272,17 +283,14 @@ class Chatbot:
                         # yep
                         if len(clarified_results) == 1:
                             self.update_user_ratings(clarified_results, input_sentiment)
-<<<<<<< HEAD
                             print('UPDATED RATINGS with', clarified_results)
                             self.printFlags()
                             # self.FLAG_expecting_clarification = False
                             self.reset_flags()
-                            return("So you {} {}, huh? What's another movie you've seen?".format(
+                            return("So you {}{} {}, huh? What's another movie you've seen?".format(
+                                "reaaaally " if input_sentiment == 2 or input_sentiment == -2 else "",
                                 "liked" if input_sentiment > 0 else "didn't like",
                                 self.titles[clarified_results[0]][0]))
-=======
-                            self.FLAG_expecting_clarification = True
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
                         # nope
                         else:
                             self.FLAG_remember_last_movie = True
@@ -296,22 +304,13 @@ class Chatbot:
                                 # will only be None if wrong date is given
                                 indexes = matching_movies
                                 # couldn't find any references to a specific movie in user's input
-<<<<<<< HEAD
                                 response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([
                                                                                                                                                                                                 self.titles[i][0] for i in indexes])
                             else:
                                 # found multiple references to a movie in user's input
                                 self.saved_movie = [self.titles[i][0] for i in clarified_results]
-                                response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year! {}".format([
+                                response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year or a piece of the title! {}".format([
                                     self.titles[i][0] for i in clarified_results])
-=======
-                                response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([self.titles[i][0] for i in indexes])
-                            else:
-                                # found multiple references to a movie in user's input
-                                indexes =  clarified_results
-                                self.saved_movie = [self.titles[i][0] for i in indexes]
-                                response = "Hmmm.. I didn\'t understand what you were referring to. Could you clarify? Maybe give me a year! {}".format([self.titles[i][0] for i in indexes])
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
                             return response
                     # If have enough ratings, give recommendations TODO: update so give rec one at a time
                     '''
@@ -531,20 +530,23 @@ class Chatbot:
         pos_count = 0
         neg_count = 0
         negation_words = [self.p.stem(word) for word
-                          in ["not", "didn\'t", "never", "don\'t", "dont", "didnt"]]
+                          in ["not", "didn\'t", "never", "don\'t", "wasn\'t", "wasnt", "dont", "didnt"]]
         emphasize_words = [self.p.stem(word) for word
-                           in ["really", "so", "very", "extremely", "seriously"]]
+                           in ["really", "super", "so", "very", "extremely", "seriously", "quite"]]
         should_flip = False
         should_emphasize = False
         arousal = 1
         for word in text.split(" "):
             if word in negation_words:
                 should_flip = True
-            elif word in emphasize_words and not should_flip:  # don't catch "don't really like"
+            elif self.creative and word in emphasize_words and not should_flip:  # don't catch "don't really like"
                 should_emphasize = True
                 arousal = 2
             elif word in self.sentiment:
                 s = self.sentiment[word]
+                if self.creative and word in self.arousal_dict and not should_flip:
+                    if self.arousal_dict[word] > 0.6:
+                        arousal = 2
                 if should_flip:
                     s = 'pos' if s == 'neg' else 'neg'
                     should_flip = False
@@ -569,6 +571,7 @@ class Chatbot:
             result = diff if diff <= 2 else 2  # positive
         else:
             result = diff if diff >= -2 else -2  # positive
+        print("SENTIMENT = {}".format(result))
         return result
 
     def extract_sentiment_for_movies(self, text):
@@ -676,15 +679,8 @@ class Chatbot:
         a = str(a)
         b = str(b)
         how_many_words_are_the_same = 0
-<<<<<<< HEAD
         a = re.sub(r'[^\w\s]', '', a)
         b = re.sub(r'[^\w\s]', '', b)
-=======
-        print(a)
-        print(b)
-        a = re.sub(r'[^\w\s]',' ',a)
-        b = re.sub(r'[^\w\s]',' ',b)
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
         print(a)
         print(b)
         A = a.split(" ")
@@ -693,10 +689,7 @@ class Chatbot:
             for j in range(len(B)):
                 if A[i] == B[j]:
                     how_many_words_are_the_same += 1
-<<<<<<< HEAD
         print(how_many_words_are_the_same)
-=======
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
         return how_many_words_are_the_same
 
     def disambiguate(self, clarification, candidates):
