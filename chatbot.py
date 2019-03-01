@@ -65,7 +65,8 @@ class Chatbot:
         # Number of user ratings we require before recommending movies
         self.ratings_threshold = 5
 
-        arousal_added = ["amazing", "awesome", "incredible"] # words that aren't in file that should be, manual add
+        # words that aren't in file that should be, manual add
+        arousal_added = ["amazing", "awesome", "incredible"]
         fname = "deps/final.txt"
         fin = open(fname)
         self.arousal_dict = {}
@@ -334,7 +335,7 @@ class Chatbot:
         if self.num_user_ratings >= self.ratings_threshold:
             recommendations = self.recommend(
                 self.user_ratings, self.ratings, 5)
-            response = "So you {}{} {}, huh? Here are some recommendations! You should watch {}".format(
+            response = "So you {}{} {}, huh? Here are some recommendations! You should watch {}! If you want more recommendations or better ones, give me more movies you've watched!".format(
                 "reaaaally " if input_sentiment == 2 or input_sentiment == -2 else "",
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)],
@@ -614,7 +615,7 @@ class Chatbot:
             sentiment2 = 0
             sentiment_final = 0
             print(txt1)
-           
+
             if i + 1 < len(all_movies):
                 txt2 = text[end_movie_name_idx: indices[i+1]]
                 sentiment2 = self.extract_sentiment(txt2)
@@ -623,7 +624,7 @@ class Chatbot:
                 txt2 = text[end_movie_name_idx:]
                 sentiment2 = self.extract_sentiment(txt2)
                 print(txt2)
-            
+
             if sentiment1 != 0:
                 sentiment_final = sentiment1
             elif sentiment2 != 0:
