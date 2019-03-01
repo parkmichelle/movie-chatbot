@@ -1,3 +1,5 @@
+
+
 # PA6, CS124, Stanford, Winter 2019
 # v.1.0.3
 # Original Python code by Ignacio Cases (@cases)
@@ -22,6 +24,7 @@ class Chatbot:
 
         # Ty
         # All the things we need to keep track of previous states of what the users have inputed
+        self.clarification_threshold = 3
         self.clarification = None
         self.saved_movie = None
         self.saved_sentiment = None
@@ -66,8 +69,6 @@ class Chatbot:
         # Michelle
         # Map {title : (date, index into self.titles)}, use to search for movie indexes
         self.title_index = dict()
-    #   for item in self.titles:
-    #       print(item)
         for index, title_genre in enumerate(self.titles):
             # Extract title and date
 
@@ -88,7 +89,6 @@ class Chatbot:
                 self.title_index[title].append((date, index))
             else:
                 self.title_index[title] = [(date, index)]
-    #   print(self.all_titles_lower)
         #############################################################################
         # TODO: Binarize the movie ratings matrix.                                  #
         #############################################################################
@@ -133,22 +133,35 @@ class Chatbot:
     # 2. Modules 2 and 3: extraction and transformation                           #
     ###############################################################################
 
+    def reset_flags(self):
+        self.clarification = None
+        self.saved_movie = None
+        self.saved_sentiment = None
+        self.FLAG_remember_last_movie = False
+        self.FLAG_remember_last_sentiment = False
+        self.NUM_FLAG_asked_for_clarification = 0
+        self.FLAG_expecting_clarification = False
+
+    def printFlags(self):
+        print("CLARIFICATION", self.clarification)
+        print("saved movie", self.saved_movie)
+        print("saved sentiment", self.saved_sentiment)
+        print("remember last movie?", self.FLAG_remember_last_movie)
+        print("remember last sentiment?", self.FLAG_remember_last_sentiment)
+        print("number of times asked for clarification", "", self.NUM_FLAG_asked_for_clarification)
+        print("expecting clarification?", self.FLAG_expecting_clarification)
+
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
-
         This is the method that is called by the REPL loop directly with user input.
-
         You should delegate most of the work of processing the user's input to
         the helper functions you write later in this class.
-
         Takes the input string from the REPL and call delegated functions that
         1) extract the relevant information, and
         2) transform the information into a response to the user.
-
         Example:
         resp = chatbot.process('I loved "The Notebok" so much!!')
         print(resp) // prints 'So you loved "The Notebook", huh?'
-
         :param line: a user-supplied line of text
         :returns: a string containing the chatbot's response to the user input
         """
@@ -157,7 +170,8 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
-
+        print('BEGINNING:')
+        self.printFlags()
         input_titles = self.extract_titles(line)
         # User already reported a movie, and we need to pass in clarification for movie or sentiment
         if self.FLAG_remember_last_movie:
@@ -168,7 +182,9 @@ class Chatbot:
             # return "Sorry, I wasn't able to figure out what movie you're talking about."
 
         # not in database
+        print("input titles {}".format(input_titles))
         matching_movies = self.find_movies_by_title(input_titles[0])
+        print("matching_movies: ", matching_movies)
         if len(matching_movies) < 1:
             '''
             self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
@@ -231,9 +247,12 @@ class Chatbot:
 
                 # 4) MORE THAN ONE MOVIE POSSIBLE?/ we haven't annoyed them with clarification?
                 # YES, reprompt with clarifying questions
-                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 4 and self.FLAG_expecting_clarification is False:
+                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification <= self.clarification_threshold and self.FLAG_expecting_clarification is False:
                     indexes = matching_movies
                     self.NUM_FLAG_asked_for_clarification += 1
+                    if self.NUM_FLAG_asked_for_clarification > self.clarification_threshold:
+                        self.reset_flags()
+                        return "I asked you for clarification 3 times already and you still don\'t seem to get it. SIGH. Let\'s start over."
                     self.FLAG_remember_last_movie = True
                     self.saved_movie = input_titles
                     self.saved_sentiment = input_sentiment
@@ -245,21 +264,39 @@ class Chatbot:
                     # are we clarifying AKA we need to disambiguate?
                     # Yes
                     if self.FLAG_expecting_clarification:
-                        input_titles = self.disambiguate(line, matching_movies)
+                        clarified_results = self.disambiguate(line, matching_movies)
                         # one choice left?
                         # yep
-                        if len(input_titles) == 1:
-                            self.update_user_ratings(input_titles, input_sentiment)
-                            self.FLAG_expecting_clarification = True
+                        if len(clarified_results) == 1:
+                            self.update_user_ratings(clarified_results, input_sentiment)
+                            print('UPDATED RATINGS with', clarified_results)
+                            self.printFlags()
+                            # self.FLAG_expecting_clarification = False
+                            self.reset_flags()
+                            return("So you {} {}, huh? What's another movie you've seen?".format(
+                                "liked" if input_sentiment > 0 else "didn't like",
+                                self.titles[clarified_results[0]][0]))
                         # nope
                         else:
-                            indexes = matching_movies
-                            self.NUM_FLAG_asked_for_clarification += 1
                             self.FLAG_remember_last_movie = True
-                            self.saved_movie = input_titles
+                            self.NUM_FLAG_asked_for_clarification += 1
+                            if self.NUM_FLAG_asked_for_clarification > self.clarification_threshold:
+                                self.reset_flags()
+                                return "I asked you for clarification 3 times already and you still don\'t seem to get it. SIGH. Let\'s start over."
                             self.saved_sentiment = input_sentiment
                             self.FLAG_expecting_clarification = True
-                            return "Hmmm...I still found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
+                            if not clarified_results:
+                                # will only be None if wrong date is given
+                                indexes = matching_movies
+                                # couldn't find any references to a specific movie in user's input
+                                response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([
+                                                                                                                                                                                                self.titles[i][0] for i in indexes])
+                            else:
+                                # found multiple references to a movie in user's input
+                                self.saved_movie = [self.titles[i][0] for i in clarified_results]
+                                response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year! {}".format([
+                                    self.titles[i][0] for i in clarified_results])
+                            return response
                     # If have enough ratings, give recommendations TODO: update so give rec one at a time
                     '''
                     if input_sentiment == 0:
@@ -285,13 +322,7 @@ class Chatbot:
                         response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
                             "liked" if input_sentiment > 0 else "didn't like",
                             input_titles)
-                        self.clarification = None
-                        self.saved_movie = None
-                        self.saved_sentiment = None
-                        self.FLAG_remember_last_movie = False
-                        self.FLAG_remember_last_sentiment = False
-                        self.NUM_FLAG_asked_for_clarification = 0
-                        self.FLAG_expecting_clarification = False
+                        self.reset_flags()
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -309,20 +340,16 @@ class Chatbot:
 
     def extract_titles(self, text):
         """Extract potential movie titles from a line of text.
-
         Given an input text, this method should return a list of movie titles
         that are potentially in the text.
-
         - If there are no movie titles in the text, return an empty list.
         - If there is exactly one movie title in the text, return a list
         containing just that one movie title.
         - If there are multiple movie titles in the text, return a list
         of all movie titles you've extracted from the text.
-
         Example:
         potential_titles = chatbot.extract_titles('I liked "The Notebook" a lot.')
         print(potential_titles) // prints ["The Notebook"]
-
         :param text: a user-supplied line of text that may contain movie titles
         :returns: list of movie titles that are potentially in the text
         """
@@ -353,7 +380,6 @@ class Chatbot:
                 for i in range(1, number_of_groups + 1):
                     if matches.group(i) != None:
                         result.append(matches.group(i).strip())
-        print(result)
         return result
     # This method finds a strings within 2 punctuations and returns an array of those strings. You need to specify the start and end punctuations
 
@@ -416,17 +442,14 @@ class Chatbot:
 
     def find_movies_by_title(self, title):
         """ Given a movie title, return a list of indices of matching movies.
-
         - If no movies are found that match the given title, return an empty list.
         - If multiple movies are found that match the given title, return a list
         containing all of the indices of these matching movies.
         - If exactly one movie is found that matches the given title, return a list
         that contains the index of that matching movie.
-
         Example:
         ids = chatbot.find_movies_by_title('Titanic')
         print(ids) // prints [1359, 1953]
-
         :param title: a string containing a movie title
         :returns: a list of indices of matching movies
         """
@@ -460,12 +483,6 @@ class Chatbot:
                 continue
             for item in self.title_index[key]:  # if all words
                 matches.append(item)
-        # if target_title in self.title_index:
-        #     print("Found the title").re
-        #     matches = self.title_index[target_title]
-        # else:
-        #     print("Not Found")
-        #     return []
         # Build result from matches
         result = []
         if target_date is not None:
@@ -505,13 +522,11 @@ class Chatbot:
         should_emphasize = False
         arousal = 1
         for word in text.split(" "):
-            print(word)
             if word in negation_words:
                 should_flip = True
             elif word in emphasize_words and not should_flip:  # don't catch "don't really like"
                 should_emphasize = True
                 arousal = 2
-                print("emphasized")
             elif word in self.sentiment:
                 s = self.sentiment[word]
                 if should_flip:
@@ -527,8 +542,7 @@ class Chatbot:
                         arousal = 1
                 else:
                     # shouldn't reach here but just in case
-                    print("ERROR, need to handle. Got new sentiment: " +
-                          self.sentiment[word])
+                    print("ERROR: Got brand new sentiment")
         diff = pos_count - neg_count
         if diff == 0:
             for word in negation_words:  # TODO:  need to check this
@@ -539,21 +553,17 @@ class Chatbot:
             result = diff if diff <= 2 else 2  # positive
         else:
             result = diff if diff >= -2 else -2  # positive
-        print(result)
         return result
 
     def extract_sentiment_for_movies(self, text):
         """Creative Feature: Extracts the sentiments from a line of text
         that may contain multiple movies. Note that the sentiments toward
         the movies may be different.
-
         You should use the same sentiment values as extract_sentiment, described above.
         Hint: feel free to call previously defined functions to implement this.
-
         Example:
         sentiments = chatbot.extract_sentiment_for_text('I liked both "Titanic (1997)" and "Ex Machina".')
         print(sentiments) // prints [("Titanic (1997)", 1), ("Ex Machina", 1)]
-
         :param text: a user-supplied line of text
         :returns: a list of tuples, where the first item in the tuple is a movie title,
         and the second is the sentiment in the text toward that movie
@@ -602,16 +612,13 @@ class Chatbot:
         """Creative Feature: Given a potentially misspelled movie title,
         return a list of the movies in the dataset whose titles have the least edit distance
         from the provided title, and with edit distance at most max_distance.
-
         - If no movies have titles within max_distance of the provided title, return an empty list.
         - Otherwise, if there's a movie closer in edit distance to the given title
         than all other movies, return a 1-element list containing its index.
         - If there is a tie for closest movie, return a list with the indices of all movies
         tying for minimum edit distance to the given movie.
-
         Example:
         chatbot.find_movies_closest_to_title("Sleeping Beaty") # should return [1656]
-
         :param title: a potentially misspelled title
         :param max_distance: the maximum edit distance to search for
         :returns: a list of movie indices with titles closest to the given title and within edit distance max_distance
@@ -650,23 +657,21 @@ class Chatbot:
 
     # returns length of longest common substring
     def lcs(self, a, b):
-        m = len(a)
-        n = len(b)
-        counter = [[0] * (n + 1) for x in range(m + 1)]
-        longest = 0
-        ret = set()
-        for i in range(m):
-            for j in range(n):
-                if a[i] == b[j]:
-                    c = counter[i][j] + 1
-                    counter[i + 1][j + 1] = c
-                    if c > longest:
-                        ret = set()
-                        longest = c
-                        ret.add(a[i - c + 1: i + 1])
-                    elif c == longest:
-                        ret.add(a[i - c + 1: i + 1])
-        return len(ret)
+        a = str(a)
+        b = str(b)
+        how_many_words_are_the_same = 0
+        a = re.sub(r'[^\w\s]', '', a)
+        b = re.sub(r'[^\w\s]', '', b)
+        print(a)
+        print(b)
+        A = a.split(" ")
+        B = b.split(" ")
+        for i in range(len(A)):
+            for j in range(len(B)):
+                if A[i] == B[j]:
+                    how_many_words_are_the_same += 1
+        print(how_many_words_are_the_same)
+        return how_many_words_are_the_same
 
     def disambiguate(self, clarification, candidates):
         """Creative Feature: Given a list of movies that the user could be talking about
@@ -674,15 +679,12 @@ class Chatbot:
         (eg. in response to your bot saying "Which movie did you mean: Titanic (1953)
         or Titanic (1997)?"), use the clarification to narrow down the list and return
         a smaller list of candidates (hopefully just 1!)
-
         - If the clarification uniquely identifies one of the movies, this should return a 1-element
         list with the index of that movie.
         - If it's unclear which movie the user means by the clarification, it should return a list
         with the indices it could be referring to (to continue the disambiguation dialogue).
-
         Example:
         chatbot.disambiguate("1997", [1359, 2716]) should return [1359]
-
         :param clarification: user input intended to disambiguate between the given movies
         :param candidates: a list of movie indices
         :returns: a list of indices corresponding to the movies identified by the clarification
@@ -707,15 +709,13 @@ class Chatbot:
         # regexp = re.compile(clarification)
         for ind, i in enumerate(candidates):
             title_str = self.titles[i]
-            title_date_tuple = self.extract_title_date(title_str[0])
-            lower_title = title_date_tuple[0].lower()
+            lower_title = self.titles[i][0].lower()
             greatestSubstring[ind] = self.lcs(clarification.lower(), lower_title)
             title = self.format_title(title_date_tuple[0])
         longest_substring_length = max(greatestSubstring)
         for i in range(0, len(candidates)):
             if greatestSubstring[i] == longest_substring_length:
                 ret.append(candidates[i])
-        print('disambiguate: ', ret)
         return ret
 
     #############################################################################
@@ -724,15 +724,11 @@ class Chatbot:
 
     def binarize(self, ratings, threshold=2.5):
         """Return a binarized version of the given matrix.
-
         To binarize a matrix, replace all entries above the threshold with 1.
         and replace all entries at or below the threshold with a -1.
-
         Entries whose values are 0 represent null values and should remain at 0.
-
         :param x: a (num_movies x num_users) matrix of user ratings, from 0.5 to 5.0
         :param threshold: Numerical rating above which ratings are considered positive
-
         :returns: a binarized version of the movie-rating matrix
         """
         #############################################################################
@@ -757,12 +753,9 @@ class Chatbot:
 
     def similarity(self, u, v):
         """Calculate the cosine similarity between two vectors.
-
         You may assume that the two arguments have the same shape.
-
         :param u: one vector, as a 1D numpy array
         :param v: another vector, as a 1D numpy array
-
         :returns: the cosine similarity between the two vectors
         """
         #############################################################################
@@ -829,19 +822,14 @@ class Chatbot:
 
     def recommend(self, user_ratings, ratings_matrix, k=10, creative=False):
         """Generate a list of indices of movies to recommend using collaborative filtering.
-
         You should return a collection of `k` indices of movies recommendations.
-
         As a precondition, user_ratings and ratings_matrix are both binarized.
-
         Remember to exclude movies the user has already rated!
-
         :param user_ratings: a binarized 1D numpy array of the user's movie ratings
         :param ratings_matrix: a binarized 2D numpy matrix of all ratings, where
         `ratings_matrix[i, j]` is the rating for movie i by user j
         :param k: the number of recommendations to generate
         :param creative: whether the chatbot is in creative mode
-
         :returns: a list of k movie indices corresponding to movies in ratings_matrix,
         in descending order of recommendation
         """
@@ -904,7 +892,6 @@ class Chatbot:
     #############################################################################
     def intro(self):
         """Return a string to use as your chatbot's description for the user.
-
         Consider adding to this description any information about what your chatbot
         can do and how the user can interact with it.
         """
@@ -919,4 +906,3 @@ class Chatbot:
 
 if __name__ == '__main__':
     print('To run your chatbot in an interactive loop from the command line, run:')
-    print('    python3 repl.py')
