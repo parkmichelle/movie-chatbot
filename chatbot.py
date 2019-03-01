@@ -65,7 +65,8 @@ class Chatbot:
         # Number of user ratings we require before recommending movies
         self.ratings_threshold = 5
 
-        arousal_added = ["amazing", "awesome", "incredible"] # words that aren't in file that should be, manual add
+        # words that aren't in file that should be, manual add
+        arousal_added = ["amazing", "awesome", "incredible"]
         fname = "deps/final.txt"
         fin = open(fname)
         self.arousal_dict = {}
@@ -297,9 +298,9 @@ class Chatbot:
                         clarified_results = self.disambiguate(line, matching_movies_index)
                         # 6) one choice left?
                         # yep
+                        input_titles = [self.titles[i] for i in clarified_results]
                         if len(clarified_results) == 1 or self.FLAG_expecting_clarification is False:
-                            self.update_user_ratings([self.titles[i]
-                                                      for i in clarified_results], input_sentiment)
+                            self.update_user_ratings(input_titles, input_sentiment)
                             print('UPDATED RATINGS with', clarified_results)
                             self.printFlags()
                             # self.FLAG_expecting_clarification = False
@@ -344,12 +345,11 @@ class Chatbot:
         if self.num_user_ratings >= self.ratings_threshold:
             recommendations = self.recommend(
                 self.user_ratings, self.ratings, 5)
-            response = "So you {}{} {}, huh? Here are some recommendations! You should watch {}".format(
+            response = "So you {}{} {}, huh? Here are some recommendations! You should watch {}! If you want more recommendations or better ones, give me more movies you've watched!".format(
                 "reaaaally " if input_sentiment == 2 or input_sentiment == -2 else "",
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)],
-                recommendations)
-            print("check a")
+                [self.titles[i][0] for i in recommendations])
             self.num_user_ratings = 0
         # If don't have enough ratings, ask for more
         else:
@@ -358,7 +358,6 @@ class Chatbot:
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)])
             self.reset_flags()
-            print('check b')
         return response
 
     # Ty
@@ -626,7 +625,7 @@ class Chatbot:
             sentiment2 = 0
             sentiment_final = 0
             print(txt1)
-           
+
             if i + 1 < len(all_movies):
                 txt2 = text[end_movie_name_idx: indices[i+1]]
                 sentiment2 = self.extract_sentiment(txt2)
@@ -635,7 +634,7 @@ class Chatbot:
                 txt2 = text[end_movie_name_idx:]
                 sentiment2 = self.extract_sentiment(txt2)
                 print(txt2)
-            
+
             if sentiment1 != 0:
                 sentiment_final = sentiment1
             elif sentiment2 != 0:
@@ -759,16 +758,19 @@ class Chatbot:
         possibleIndexes = [x[1] for x in self.title_index[title]]
         ret = []
         # if there are many movies with the same titles (the intersection has more than 1)
+        '''
         if len(set(possibleIndexes).intersection(set(candidates))) > 1:
             for val in self.title_index[title]:
                 if val[0] == clarification:
                     ret.append(val[1])
             return ret
+            '''
         greatestSubstring = [0 for i in range(len(candidates))]
         arr = clarification.split(" ")
         if 'all' in arr or 'everything' in arr:
             self.FLAG_expecting_clarification = False
             return candidates
+
         # case 2: more info on movie title and comparison
         # longest_substring_length IS ACTUALLY matching by number of WORDS
         for ind, i in enumerate(candidates):
