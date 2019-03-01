@@ -315,13 +315,14 @@ class Chatbot:
                             else:
                                 # found multiple references to a movie in user's input
                                 self.saved_movie = [self.titles[i][0] for i in clarified_results]
-                                response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year or a piece of the title! {}".format([
+                                response = "Hmmm.. That helped me a bit, I didn\'t quite narrow down what you were referring to. Could you help me narrow it down even more? Maybe give me a year or a piece of the title! {}".format([
                                     self.titles[i][0] for i in clarified_results])
                             return response
 
                     # Nope, (5) we're not clarifying
                     self.update_user_ratings(input_titles, input_sentiment)
                     print('step 5, updated user ratings with: ', input_titles)
+                    input_titles = [self.titles[i] for i in matching_movies_index]
                     return self.check_do_we_have_enough_ratings(input_sentiment, input_titles)
 
         #############################################################################
@@ -411,6 +412,7 @@ class Chatbot:
                 for i in range(1, number_of_groups + 1):
                     if matches.group(i) != None:
                         result.append(matches.group(i).strip())
+        print("extracted title: ", result)
         return result
     # This method finds a strings within 2 punctuations and returns an array of those strings. You need to specify the start and end punctuations
 
@@ -516,6 +518,18 @@ class Chatbot:
                 matches.append(item)
         # Build result from matches
         result = []
+        if len(matches) == 0:
+            for i in self.find_movies_closest_to_title(title, max_distance=3):
+                matches.append(self.titles[i][0])
+                print(matches)
+            if len(matches) != 0:
+                newTitles = []
+                for i in matches:
+                    result.append(self.find_movies_by_title(i)[0])
+                    newTitles.append(i)
+                print('newtitles', newTitles)
+                self.input_title = newTitles
+                return result
         if target_date is not None:
             for match in matches:
                 match_date = match[0]
@@ -951,7 +965,21 @@ class Chatbot:
         Consider adding to this description any information about what your chatbot
         can do and how the user can interact with it.
         """
-        return "TODO"
+        arrayOfFeatures = ['Identifying movies without quotation marks and correct capitalization (part 1)',
+                           'Identifying movies without quotation marks and correct capitalization (part 2)',
+                           'Spell-correcting fallback for find_movies_by_title. Returns indices of movies with least edit distance from title, of distance at most max_distance.',
+                           'Extracting sentiment with multiple-movie input',
+                           'Disambiguation (part 2) Narrow down from candidates given a user\'s response, such as a substring belonging to the right movie',
+                           'Understanding references to things said previously',
+                           'Identifying and responding to emotions',
+                           'Dialogue for disambiguation (Using your implementation of disambiguate and extension of find_movies_by_title)']
+        ret = "Master Bot does the following creative features:"
+        for i, features in enumerate(arrayOfFeatures):
+            ret += '\n {})'.format(i)
+            ret += features
+        ret += '\n...along with a variety of fluency and creativeness. \nWe hope you enjoy our master bot (and all the tears, both in joy and fustration, that came in growing it!)'
+        ret += '\nNOTE: while certain features will apply even when the bot is in regular mode, some features are native to creative bot only'
+        return ret
         """
     Your task is to implement the chatbot as detailed in the PA6 instructions.
     Remember: in the starter mode, movie names will come in quotation marks and
