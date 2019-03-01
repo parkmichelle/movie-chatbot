@@ -245,11 +245,16 @@ class Chatbot:
                     # are we clarifying AKA we need to disambugate?
                     # Yes
                     if self.FLAG_expecting_clarification:
-                        input_titles = self.disambiguate(line, matching_movies)
+                        indices = self.disambiguate(line, matching_movies)
+                        input_titles = []
+                        for index in indices:
+                            input_titles.append(self.titles[index][0])
                         # one choice left?
                         # yep
                         if len(input_titles) == 1:
                             self.update_user_ratings(input_titles, input_sentiment)
+                            self.FLAG_expecting_clarification = False
+
                         # nope
                         else:
                             indexes = matching_movies
@@ -290,6 +295,7 @@ class Chatbot:
                         self.FLAG_remember_last_movie = False
                         self.FLAG_remember_last_sentiment = False
                         self.NUM_FLAG_asked_for_clarification = 0
+                        self.FLAG_expecting_clarification = False
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -523,9 +529,6 @@ class Chatbot:
                           self.sentiment[word])
         diff = pos_count - neg_count
         if diff == 0:
-            for word in negation_words:  # TODO:  need to check this
-                if word in text:
-                    return -1
             result = 0  # neutral
         elif diff > 0:
             result = 1  # positive
@@ -549,6 +552,7 @@ class Chatbot:
         :returns: a list of tuples, where the first item in the tuple is a movie title,
         and the second is the sentiment in the text toward that movie
         """
+        negation_words = ["not", "didn't", "never"]
         result = []
         # text = text.lower()
         all_movies = self.findStringWithinPunc(text, "\"", "\"")
@@ -562,19 +566,37 @@ class Chatbot:
             end_movie_name_idx = index + len(all_movies[i])
             sentiment2 = 0
             sentiment_final = 0
+            print(txt1)
+           
             if i + 1 < len(all_movies):
                 txt2 = text[end_movie_name_idx: indices[i+1]]
                 sentiment2 = self.extract_sentiment(txt2)
+                print(txt2)
             else:  # at the end
                 txt2 = text[end_movie_name_idx:]
                 sentiment2 = self.extract_sentiment(txt2)
+                print(txt2)
+            
             if sentiment1 != 0:
                 sentiment_final = sentiment1
             elif sentiment2 != 0:
                 sentiment_final = sentiment2
             else:
-                sentiment_final = before_sentiment
-            if before_sentiment == 0:
+
+                flip_emotion = False
+                # print("Before sentiment is: {}".format(before_sentiment))
+                arr_txt = txt1.split(" ")
+                for word in arr_txt:
+                    if word.strip() in negation_words:
+                        flip_emotion = True
+                        break
+                if flip_emotion:
+                    if before_sentiment == -1:
+                        sentiment_final = 1
+                    elif before_sentiment == 1:
+                        sentiment_final = -1
+                # print("Final Sentiment: {}".format(sentiment_final))
+            if sentiment_final != 0:
                 before_sentiment = sentiment_final
             movie_to_sentiment[all_movies[i]] = sentiment_final
             for item in movie_to_sentiment:
