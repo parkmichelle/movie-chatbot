@@ -163,6 +163,16 @@ class Chatbot:
         print("number of times asked for clarification", "", self.NUM_FLAG_asked_for_clarification)
         print("expecting clarification?", self.FLAG_expecting_clarification)
         print("num of user ratings", self.num_user_ratings)
+    
+    def inputTowardsBot(self, line):
+        line = line.lower()
+        arr = line.split(" ")
+        if arr[0].strip() == "i" and arr[1].strip == "am": return True
+        if "bot" in arr: return True
+        possible_bot_lines = ["i like you", "i hate you"]
+        if line.strip() in possible_bot_lines : return True
+        if len(line) >= 7 and line[0:7] == "you are": return True
+        return False
 
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
@@ -194,7 +204,7 @@ class Chatbot:
 
         # 1) Extract success?
         # NO
-        if not input_titles:
+        if not input_titles or self.inputTowardsBot(line):
             return self.nonMovieSentiment(line)
             # return "Sorry, I wasn't able to figure out what movie you're talking about."
 
@@ -854,6 +864,7 @@ class Chatbot:
         #############################################################################
 
     def nonMovieSentiment(self, user_entry):
+        # user_entry = "I really hate you"
         fname = "deps/final.txt"
         fin = open(fname)
         word_to_vec = {}
@@ -862,13 +873,14 @@ class Chatbot:
             word = arr[0].strip()
             word_to_vec[word] = arr[1].strip()
         fin.close()
+        normal_resp = "Now, tell me about a movie you have seen ..."
         emotion_arr = ["anger", "disgust", "fear", "joy", "sadness", "surprise"]
-        neg_emotion_resp = {"anger": "Sorry if I made you angry. Just wanted to help",
-                            "disgust": "Sorry if that was disgusting.",
-                            "fear": "Am sorry that I scared you",
-                            "sadness": "Things will get better soon. Tough times do not last, but tough people like YOU do!",
-                            "joy": "Yess. It gives me a lot of joy to do my work",
-                            "surprise": "I got you!"}
+        neg_emotion_resp = {"anger": "Sorry if I made you angry. Just wanted to help."+normal_resp,
+                            "disgust": "Sorry if that was disgusting."+normal_resp,
+                            "fear": "Am sorry that I scared you."+normal_resp,
+                            "sadness": "Things will get better soon. Tough times do not last, but tough people like YOU do!"+normal_resp,
+                            "joy": "Yess. It gives me a lot of joy to do my work"+normal_resp,
+                            "surprise": "I got you!"+normal_resp}
         user_entry = user_entry.strip(punctuation)
         list_of_words = user_entry.split(" ")
         emotion_to_count = {}
@@ -880,14 +892,25 @@ class Chatbot:
             emotion_vec = word_to_vec[word.strip()]
             for idx, char in enumerate(emotion_vec):
                 emotion_to_count[emotion_arr[idx]] += int(char)
+        print(emotion_to_count)
         most_likely_emotion = max(emotion_to_count, key=emotion_to_count.get)
+        # print(most_likely_emotion)
         response = neg_emotion_resp[most_likely_emotion]
         areAllZeros = True
         for item in emotion_to_count:
             if emotion_to_count[item] > 0:
                 areAllZeros = False
         if areAllZeros:
-            response = "Sorry, I wasn't able to figure out what movie you're talking about. Let's try this again"
+            neg_or_pos = self.extract_sentiment(user_entry)
+            if neg_or_pos > 0:
+                if "like"  in user_entry or "love" in user_entry:
+                    response = "Love you too :-). Now, tell me about a movie you have seen ..."
+                else:
+                    response = "Niice... Always glad to be at your service. Now, tell me about a movie you have seen..."
+            elif neg_or_pos == -1:
+                response = "Sorry if I made you feel bad. Now, tell me about a movie that you have seen..."
+            else: 
+                response = "Sorry, I wasn't able to figure out what movie you're talking about. Let's try this again"
         return response
 
     def recommend(self, user_ratings, ratings_matrix, k=10, creative=False):
