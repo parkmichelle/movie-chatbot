@@ -144,19 +144,21 @@ def test_extract_sentiment():
 def test_extract_sentiment_for_movies():
     print("Testing test_extract_sentiment_for_movies() functionality...")
     chatbot = Chatbot(True)
-    if assertListEquals(
-        chatbot.extract_sentiment_for_movies("I liked both \"I, Robot\" and \"Ex Machina\"."),
-        [("I, Robot", 1), ("Ex Machina", 1)],
-        "Incorrect output for test_extract_sentiment_for_movies(\"I liked both \"I, Robot\" and \"Ex Machina\".)\"",
-        orderMatters=False
-    ) and assertListEquals(
-        chatbot.extract_sentiment_for_movies("I liked \"I, Robot\" but not \"Ex Machina\"."),
-        [("I, Robot", 1), ("Ex Machina", -1)],
-        "Incorrect output for test_extract_sentiment_for_movies(\"I liked \"I, Robot\" but not \"Ex Machina\".)\"",
-        orderMatters=False
-    ):
-        print('extract_sentiment_for_movies() sanity check passed!')
-    print()
+    response = chatbot.nonMovieSentiment("i like you really nice bot")
+    print("Got: {}".format(response))
+    # if assertListEquals(
+    #     chatbot.extract_sentiment_for_movies("I liked both \"I, Robot\" and \"Ex Machina\"."),
+    #     [("I, Robot", 1), ("Ex Machina", 1)],
+    #     "Incorrect output for test_extract_sentiment_for_movies(\"I liked both \"I, Robot\" and \"Ex Machina\".)\"",
+    #     orderMatters=False
+    # ) and assertListEquals(
+    #     chatbot.extract_sentiment_for_movies("I liked \"I, Robot\" but not \"Ex Machina\"."),
+    #     [("I, Robot", 1), ("Ex Machina", -1)],
+    #     "Incorrect output for test_extract_sentiment_for_movies(\"I liked \"I, Robot\" but not \"Ex Machina\".)\"",
+    #     orderMatters=False
+    # ):
+    #     print('extract_sentiment_for_movies() sanity check passed!')
+    # print()
 
 def test_find_movies_closest_to_title():
     print("Testing find_movies_closest_to_title() functionality...")
