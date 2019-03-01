@@ -28,6 +28,7 @@ class Chatbot:
         self.FLAG_remember_last_movie = False
         self.FLAG_remember_last_sentiment = False
         self.NUM_FLAG_asked_for_clarification = 0
+        self.FLAG_expecting_clarification = False
 
         # Ty
         # we never reset these two below once they are initiated
@@ -168,9 +169,10 @@ class Chatbot:
             if not input_titles:
                 return "Sorry, I wasn't able to figure out what movie you're talking about."
 
-            # not in database
+            # 2) Can we find it?
             matching_movies = self.find_movies_by_title(input_titles[0])
-            if  len (matching_movies) < 1:
+            # No
+            if len(matching_movies) < 1:
                 '''
                 self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
                 if self.spellcheck:
@@ -183,48 +185,70 @@ class Chatbot:
                     self.COUNT_invalid_user_resp += 1
                     return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
                 return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
-
+            # yes we can find it
             else:
                 line_for_sentiment = None
                 line_lower = line.lower()
                 for word in input_titles:
                     line_for_sentiment = line_lower.replace(word.lower(), "")
                 input_sentiment = self.extract_sentiment(line_for_sentiment)
-                # Neutral sentiment found, ask for more emotional sentence
+
+                # 3a) Saved Sentiment?
+                # Yes
                 if self.saved_sentiment is not None:
                     if self.saved_sentiment != 0:
                         input_sentiment = self.saved_sentiment
+                # 3b) neutral sentiment?
+                # YES, REPROMPT!!!
                 if input_sentiment == 0:
                     response = "I can't tell how you felt about {}. Tell me more about it.".format(
                         input_titles)
                     self.FLAG_remember_last_movie = True
                     self.saved_movie = input_titles
 
-                # Tries to disambugate, if it hasn't been
-                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 1:
+                # 4) MORE THAN ONE MOVIE POSSIBLE?/ we haven't annoyed them with clarification?
+                # YES, reprompt with clarifying questions
+                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 4 and self.FLAG_expecting_clarification is False:
                     indexes = matching_movies
                     self.NUM_FLAG_asked_for_clarification += 1
                     self.FLAG_remember_last_movie = True
-
                     self.saved_movie = input_titles
                     self.saved_sentiment = input_sentiment
+                    self.FLAG_expecting_clarification = True
                     return "I found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
 
-                # Positive or negative sentiment found, process it
+                # NO
                 else:
-                    if self.NUM_FLAG_asked_for_clarification == 1:
-                        self.NUM_FLAG_asked_for_clarification += 1
-                        self.disambiguate(
-                            line, matching_movies)
-                    self.update_user_ratings(input_titles, input_sentiment)
+                    # are we clarifying AKA we need to disambugate?
+                    # Yes
+                    if self.FLAG_expecting_clarification:
+                        input_titles = self.disambiguate(line, matching_movies)
+                        # one choice left?
+                        # yep
+                        if len(input_titles) == 1:
+                            self.update_user_ratings(input_titles, input_sentiment)
+                        # nope
+                        else:
+                            indexes = matching_movies
+                            self.NUM_FLAG_asked_for_clarification += 1
+                            self.FLAG_remember_last_movie = True
+                            self.saved_movie = input_titles
+                            self.saved_sentiment = input_sentiment
+                            self.FLAG_expecting_clarification = True
+                            return "Hmmm...I still found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
                     # If have enough ratings, give recommendations TODO: update so give rec one at a time
+                    '''
                     if input_sentiment == 0:
                         response = "I can't tell how you felt about {}. Tell me more about it.".format(
                             input_titles)
                         self.FLAG_remember_last_movie = True
                         self.saved_movie = input_titles
+                    '''
+                    # Nope, we're not clarifying
+                    self.update_user_ratings(input_titles, input_sentiment)
 
-                    elif self.num_user_ratings >= self.ratings_threshold:
+                    # Now checks to see whether we have enough to recommend
+                    if self.num_user_ratings >= self.ratings_threshold:
                         recommendations = self.recommend(
                             self.user_ratings, self.ratings, 5)
                         response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
@@ -345,6 +369,7 @@ class Chatbot:
     # If date is not found returns (title, None)
     # Assumes that anything enclosed in () is a date => modified this because of Seven (a.k.a. Se7en) (1995)
     def extract_title_date(self, input_title):
+        input_title = str(input_title)
         date_start = input_title.find("(")
         while date_start != -1:
             # -1 to get rid of space before "("
@@ -789,7 +814,7 @@ class Chatbot:
         Consider adding to this description any information about what your chatbot
         can do and how the user can interact with it.
         """
-        return  "TODO"
+        return "TODO"
         """
       Your task is to implement the chatbot as detailed in the PA6 instructions.
       Remember: in the starter mode, movie names will come in quotation marks and
