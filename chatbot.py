@@ -838,7 +838,7 @@ class Chatbot:
         #############################################################################
 
     def nonMovieSentiment(self, user_entry):
-        fname = "deps/emotion_lexicon.txt"
+        fname = "deps/final.txt"
         fin = open(fname)
         word_to_vec = {}
         for line in fin:
