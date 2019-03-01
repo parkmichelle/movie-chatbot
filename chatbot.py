@@ -22,6 +22,7 @@ class Chatbot:
 
         # Ty
         # All the things we need to keep track of previous states of what the users have inputed
+        self.clarification_threshold = 3
         self.clarification = None
         self.saved_movie = None
         self.saved_sentiment = None
@@ -133,6 +134,15 @@ class Chatbot:
     # 2. Modules 2 and 3: extraction and transformation                           #
     ###############################################################################
 
+    def reset_flags(self):
+        print("Resetting flags...")
+        self.clarification = None
+        self.saved_movie = None
+        self.saved_sentiment = None
+        self.FLAG_remember_last_movie = False
+        self.FLAG_remember_last_sentiment = False
+        self.NUM_FLAG_asked_for_clarification = 0
+
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
 
@@ -161,9 +171,14 @@ class Chatbot:
         input_titles = self.extract_titles(line)
         # User already reported a movie, and we need to pass in clarification for movie or sentiment
         if self.FLAG_remember_last_movie:
+            print("REMEMBER LAST")
+            print(self.saved_movie)
+            print("REMEMBER LAST")
             input_titles = self.saved_movie
+            print("input title #1 = {}".format(input_titles))
         # Didn't find movie in input
         if not input_titles:
+            print("input title #1 = {}".format(input_titles))
             return self.nonMovieSentiment(line)
             # return "Sorry, I wasn't able to figure out what movie you're talking about."
 
@@ -190,10 +205,13 @@ class Chatbot:
                 input_titles = self.saved_movie
             # Didn't find movie in input
             if not input_titles:
+                print("INPUT")
                 return "Sorry, I wasn't able to figure out what movie you're talking about."
 
             # 2) Can we find it?
+            print("input title #2 = {}".format(input_titles))
             matching_movies = self.find_movies_by_title(input_titles[0])
+            print("matching movies #2 = {}".format(matching_movies))
             # No
             if len(matching_movies) < 1:
                 '''
@@ -227,14 +245,20 @@ class Chatbot:
                     response = "I can't tell how you felt about {}. Tell me more about it.".format(
                         input_titles)
                     self.FLAG_remember_last_movie = True
+                    print("3")
                     self.saved_movie = input_titles
 
                 # 4) MORE THAN ONE MOVIE POSSIBLE?/ we haven't annoyed them with clarification?
                 # YES, reprompt with clarifying questions
-                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 4 and self.FLAG_expecting_clarification is False:
+                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification <= self.clarification_threshold and self.FLAG_expecting_clarification is False:
                     indexes = matching_movies
                     self.NUM_FLAG_asked_for_clarification += 1
+                    if self.NUM_FLAG_asked_for_clarification > self.clarification_threshold:
+                        self.reset_flags()
+                        return "I asked you for clarification 3 times already and you still don\'t seem to get it. SIGH. Let\'s start over."
                     self.FLAG_remember_last_movie = True
+                    print("4")
+                    print("input titles: {}".format(input_titles))
                     self.saved_movie = input_titles
                     self.saved_sentiment = input_sentiment
                     self.FLAG_expecting_clarification = True
@@ -253,12 +277,23 @@ class Chatbot:
                         # nope
                         else:
                             indexes = matching_movies
-                            self.NUM_FLAG_asked_for_clarification += 1
                             self.FLAG_remember_last_movie = True
-                            self.saved_movie = input_titles
+                            self.NUM_FLAG_asked_for_clarification += 1
+                            if self.NUM_FLAG_asked_for_clarification > self.clarification_threshold:
+                                self.reset_flags()
+                                return "I asked you for clarification 3 times already and you still don\'t seem to get it. SIGH. Let\'s start over."
                             self.saved_sentiment = input_sentiment
                             self.FLAG_expecting_clarification = True
-                            return "Hmmm...I still found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
+                            if not input_titles:
+                                # couldn't find any references to a specific movie in user's input
+                                response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([self.titles[i][0] for i in indexes])
+                            else:
+                                # found multiple references to a movie in user's input
+                                print("1")
+                                print("input titles: {}".format(input_titles))
+                                self.saved_movie = input_titles
+                                response = "Hmmm...I still found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
+                            return response
                     # If have enough ratings, give recommendations TODO: update so give rec one at a time
                     '''
                     if input_sentiment == 0:
@@ -284,12 +319,8 @@ class Chatbot:
                         response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
                             "liked" if input_sentiment > 0 else "didn't like",
                             input_titles)
-                        self.clarification = None
-                        self.saved_movie = None
-                        self.saved_sentiment = None
-                        self.FLAG_remember_last_movie = False
-                        self.FLAG_remember_last_sentiment = False
-                        self.NUM_FLAG_asked_for_clarification = 0
+                        self.reset_flags()
+
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -791,6 +822,7 @@ class Chatbot:
             if emotion_to_count[item] > 0:
                 areAllZeros = False
         if areAllZeros:
+            print("ZERO")
             response = "Sorry, I wasn't able to figure out what movie you're talking about. Let's try this again"
         return response
 
