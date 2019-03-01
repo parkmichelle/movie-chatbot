@@ -142,6 +142,7 @@ class Chatbot:
         self.NUM_FLAG_asked_for_clarification = 0
         self.FLAG_expecting_clarification = False
 
+<<<<<<< HEAD
     def printFlags(self):
         print("CLARIFICATION", self.clarification)
         print("saved movie", self.saved_movie)
@@ -151,6 +152,8 @@ class Chatbot:
         print("number of times asked for clarification", "", self.NUM_FLAG_asked_for_clarification)
         print("expecting clarification?", self.FLAG_expecting_clarification)
 
+=======
+>>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
         This is the method that is called by the REPL loop directly with user input.
@@ -269,6 +272,7 @@ class Chatbot:
                         # yep
                         if len(clarified_results) == 1:
                             self.update_user_ratings(clarified_results, input_sentiment)
+<<<<<<< HEAD
                             print('UPDATED RATINGS with', clarified_results)
                             self.printFlags()
                             # self.FLAG_expecting_clarification = False
@@ -276,6 +280,9 @@ class Chatbot:
                             return("So you {} {}, huh? What's another movie you've seen?".format(
                                 "liked" if input_sentiment > 0 else "didn't like",
                                 self.titles[clarified_results[0]][0]))
+=======
+                            self.FLAG_expecting_clarification = True
+>>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
                         # nope
                         else:
                             self.FLAG_remember_last_movie = True
@@ -289,6 +296,7 @@ class Chatbot:
                                 # will only be None if wrong date is given
                                 indexes = matching_movies
                                 # couldn't find any references to a specific movie in user's input
+<<<<<<< HEAD
                                 response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([
                                                                                                                                                                                                 self.titles[i][0] for i in indexes])
                             else:
@@ -296,6 +304,14 @@ class Chatbot:
                                 self.saved_movie = [self.titles[i][0] for i in clarified_results]
                                 response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year! {}".format([
                                     self.titles[i][0] for i in clarified_results])
+=======
+                                response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([self.titles[i][0] for i in indexes])
+                            else:
+                                # found multiple references to a movie in user's input
+                                indexes =  clarified_results
+                                self.saved_movie = [self.titles[i][0] for i in indexes]
+                                response = "Hmmm.. I didn\'t understand what you were referring to. Could you clarify? Maybe give me a year! {}".format([self.titles[i][0] for i in indexes])
+>>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
                             return response
                     # If have enough ratings, give recommendations TODO: update so give rec one at a time
                     '''
@@ -660,8 +676,15 @@ class Chatbot:
         a = str(a)
         b = str(b)
         how_many_words_are_the_same = 0
+<<<<<<< HEAD
         a = re.sub(r'[^\w\s]', '', a)
         b = re.sub(r'[^\w\s]', '', b)
+=======
+        print(a)
+        print(b)
+        a = re.sub(r'[^\w\s]',' ',a)
+        b = re.sub(r'[^\w\s]',' ',b)
+>>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
         print(a)
         print(b)
         A = a.split(" ")
@@ -670,7 +693,10 @@ class Chatbot:
             for j in range(len(B)):
                 if A[i] == B[j]:
                     how_many_words_are_the_same += 1
+<<<<<<< HEAD
         print(how_many_words_are_the_same)
+=======
+>>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
         return how_many_words_are_the_same
 
     def disambiguate(self, clarification, candidates):
