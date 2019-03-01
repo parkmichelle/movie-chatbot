@@ -242,7 +242,7 @@ class Chatbot:
 
                 # NO
                 else:
-                    # are we clarifying AKA we need to disambugate?
+                    # are we clarifying AKA we need to disambiguate?
                     # Yes
                     if self.FLAG_expecting_clarification:
                         input_titles = self.disambiguate(line, matching_movies)
@@ -250,6 +250,7 @@ class Chatbot:
                         # yep
                         if len(input_titles) == 1:
                             self.update_user_ratings(input_titles, input_sentiment)
+                            self.FLAG_expecting_clarification = True
                         # nope
                         else:
                             indexes = matching_movies
@@ -290,7 +291,7 @@ class Chatbot:
                         self.FLAG_remember_last_movie = False
                         self.FLAG_remember_last_sentiment = False
                         self.NUM_FLAG_asked_for_clarification = 0
-
+                        self.FLAG_expecting_clarification = False
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -480,43 +481,50 @@ class Chatbot:
 
     def extract_sentiment(self, text):
         """Extract a sentiment rating from a line of text.
-
         You should return -1 if the sentiment of the text is negative, 0 if the
         sentiment of the text is neutral (no sentiment detected), or +1 if the
         sentiment of the text is positive.
-
         As an optional creative extension, return -2 if the sentiment of the text
         is super negative and +2 if the sentiment of the text is super positive.
-
         Example:
-        sentiment = chatbot.extract_sentiment('I liked "The Titanic"')
-        print(sentiment) // prints 1
-
+          sentiment = chatbot.extract_sentiment('I liked "The Titanic"')
+          print(sentiment) // prints 1
         :param text: a user-supplied line of text
         :returns: a numerical value for the sentiment of the text
         """
         text = text.replace('"', "")
-
         text = [self.p.stem(word) for word in text.split(" ")]
         text = ' '.join(text)
         pos_count = 0
         neg_count = 0
-        # TODO: might need to expand this
-        negation_words = ["not", "didn't", "never"]
+        negation_words = [self.p.stem(word) for word
+                          in ["not", "didn\'t", "never", "don\'t", "dont", "didnt"]]
+        emphasize_words = [self.p.stem(word) for word
+                           in ["really", "so", "very", "extremely", "seriously"]]
         should_flip = False
-        # TODO: split by punctuation too, use nltk if piazza post answered, also check for use of porterstemmer
+        should_emphasize = False
+        arousal = 1
         for word in text.split(" "):
+            print(word)
             if word in negation_words:
                 should_flip = True
+            elif word in emphasize_words and not should_flip:  # don't catch "don't really like"
+                should_emphasize = True
+                arousal = 2
+                print("emphasized")
             elif word in self.sentiment:
                 s = self.sentiment[word]
                 if should_flip:
                     s = 'pos' if s == 'neg' else 'neg'
                     should_flip = False
                 if s == 'pos':
-                    pos_count += 1
+                    pos_count += arousal
+                    if should_emphasize:
+                        arousal = 1
                 elif s == 'neg':
-                    neg_count += 1
+                    neg_count += arousal
+                    if should_emphasize:
+                        arousal = 1
                 else:
                     # shouldn't reach here but just in case
                     print("ERROR, need to handle. Got new sentiment: " +
@@ -528,9 +536,10 @@ class Chatbot:
                     return -1
             result = 0  # neutral
         elif diff > 0:
-            result = 1  # positive
+            result = diff if diff <= 2 else 2  # positive
         else:
-            result = -1  # negative
+            result = diff if diff >= -2 else -2  # positive
+        print(result)
         return result
 
     def extract_sentiment_for_movies(self, text):
@@ -639,6 +648,26 @@ class Chatbot:
         currentD += 1
         return 1 + min(self.Modified_MinEditDis(wordA, wordB, a, b - 1, maxD, currentD), self.Modified_MinEditDis(wordA, wordB, a - 1, b, maxD, currentD), self.Modified_MinEditDis(wordA, wordB, a - 1, b - 1, maxD, currentD))
 
+    # returns length of longest common substring
+    def lcs(self, a, b):
+        m = len(a)
+        n = len(b)
+        counter = [[0] * (n + 1) for x in range(m + 1)]
+        longest = 0
+        ret = set()
+        for i in range(m):
+            for j in range(n):
+                if a[i] == b[j]:
+                    c = counter[i][j] + 1
+                    counter[i + 1][j + 1] = c
+                    if c > longest:
+                        ret = set()
+                        longest = c
+                        ret.add(a[i - c + 1: i + 1])
+                    elif c == longest:
+                        ret.add(a[i - c + 1: i + 1])
+        return len(ret)
+
     def disambiguate(self, clarification, candidates):
         """Creative Feature: Given a list of movies that the user could be talking about
         (represented as indices), and a string given by the user as clarification
@@ -673,16 +702,20 @@ class Chatbot:
                 if val[0] == clarification:
                     ret.append(val[1])
             return ret
-
+        greatestSubstring = [0 for i in range(len(candidates))]
         # case 2: more info on movie title and comparison
-        regexp = re.compile(clarification)
-        for i in candidates:
+        # regexp = re.compile(clarification)
+        for ind, i in enumerate(candidates):
             title_str = self.titles[i]
             title_date_tuple = self.extract_title_date(title_str[0])
+            lower_title = title_date_tuple[0].lower()
+            greatestSubstring[ind] = self.lcs(clarification.lower(), lower_title)
             title = self.format_title(title_date_tuple[0])
-            if regexp.search(title):
-                for val in self.title_index[title]:
-                    ret.append(val[1])
+        longest_substring_length = max(greatestSubstring)
+        for i in range(0, len(candidates)):
+            if greatestSubstring[i] == longest_substring_length:
+                ret.append(candidates[i])
+        print('disambiguate: ', ret)
         return ret
 
     #############################################################################
