@@ -29,7 +29,6 @@ class Chatbot:
         self.saved_movie = None
         self.saved_sentiment = None
         self.FLAG_remember_last_movie = False
-        self.FLAG_remember_last_sentiment = False
         self.NUM_FLAG_asked_for_clarification = 0
         self.FLAG_expecting_clarification = False
 
@@ -138,22 +137,18 @@ class Chatbot:
         self.saved_movie = None
         self.saved_sentiment = None
         self.FLAG_remember_last_movie = False
-        self.FLAG_remember_last_sentiment = False
         self.NUM_FLAG_asked_for_clarification = 0
         self.FLAG_expecting_clarification = False
 
-<<<<<<< HEAD
     def printFlags(self):
         print("CLARIFICATION", self.clarification)
         print("saved movie", self.saved_movie)
         print("saved sentiment", self.saved_sentiment)
         print("remember last movie?", self.FLAG_remember_last_movie)
-        print("remember last sentiment?", self.FLAG_remember_last_sentiment)
         print("number of times asked for clarification", "", self.NUM_FLAG_asked_for_clarification)
         print("expecting clarification?", self.FLAG_expecting_clarification)
+        print("num of user ratings", self.num_user_ratings)
 
-=======
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
         This is the method that is called by the REPL loop directly with user input.
@@ -176,19 +171,25 @@ class Chatbot:
         print('BEGINNING:')
         self.printFlags()
         input_titles = self.extract_titles(line)
-        # User already reported a movie, and we need to pass in clarification for movie or sentiment
+
+        # 0) Is Movie flag saved on?
+        # Yes, then change the input
         if self.FLAG_remember_last_movie:
             input_titles = self.saved_movie
-        # Didn't find movie in input
+
+        # 1) Extract success?
+        # NO
         if not input_titles:
             return self.nonMovieSentiment(line)
             # return "Sorry, I wasn't able to figure out what movie you're talking about."
 
-        # not in database
+        # 2) Can we find it
         print("input titles {}".format(input_titles))
-        matching_movies = self.find_movies_by_title(input_titles[0])
-        print("matching_movies: ", matching_movies)
-        if len(matching_movies) < 1:
+        matching_movies_index = self.convert_titles_to_index(input_titles)
+        print("matching_movies_index: ", matching_movies_index)
+
+        # No (2) we can't
+        if len(matching_movies_index) < 1:
             '''
             self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
             if self.spellcheck:
@@ -203,6 +204,7 @@ class Chatbot:
             return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
 
         else:
+            '''
             input_titles = self.extract_titles(line)
             # User already reported a movie, and we need to pass in clarification for movie or sentiment
             if self.FLAG_remember_last_movie:
@@ -212,13 +214,9 @@ class Chatbot:
                 return "Sorry, I wasn't able to figure out what movie you're talking about."
 
             # 2) Can we find it?
-            matching_movies = self.find_movies_by_title(input_titles[0])
+            matching_movies_index = self.find_movies_by_title(input_titles[0])
             # No
-            if len(matching_movies) < 1:
-                '''
-                self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
-                if self.spellcheck:
-                '''
+            if len(matching_movies_index) < 1:
                 if len(self.LIST_movies_user_already_inputted) == 0:
                     for title in input_titles:
                         self.LIST_movies_user_already_inputted.append(title)
@@ -227,7 +225,10 @@ class Chatbot:
                     self.COUNT_invalid_user_resp += 1
                     return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
                 return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
-            # yes we can find it
+                '''
+            if 1 == 0:
+                print('math is a lie')
+            # YES (2) we can find it
             else:
                 line_for_sentiment = None
                 line_lower = line.lower()
@@ -236,7 +237,7 @@ class Chatbot:
                 input_sentiment = self.extract_sentiment(line_for_sentiment)
 
                 # 3a) Saved Sentiment?
-                # Yes
+                # Yes, change to save
                 if self.saved_sentiment is not None:
                     if self.saved_sentiment != 0:
                         input_sentiment = self.saved_sentiment
@@ -248,42 +249,38 @@ class Chatbot:
                     self.FLAG_remember_last_movie = True
                     self.saved_movie = input_titles
 
-                # 4) MORE THAN ONE MOVIE POSSIBLE?/ we haven't annoyed them with clarification?
+                # 4) MORE THAN ONE MOVIE POSSIBLE?/ we haven't annoyed them with clarification/ Not expecting clarification??
                 # YES, reprompt with clarifying questions
-                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification <= self.clarification_threshold and self.FLAG_expecting_clarification is False:
-                    indexes = matching_movies
+                if (len(input_titles) > 1 or len(matching_movies_index) > 1) and self.NUM_FLAG_asked_for_clarification <= self.clarification_threshold and self.FLAG_expecting_clarification is False:
+                    indexes = matching_movies_index
                     self.NUM_FLAG_asked_for_clarification += 1
                     if self.NUM_FLAG_asked_for_clarification > self.clarification_threshold:
                         self.reset_flags()
                         return "I asked you for clarification 3 times already and you still don\'t seem to get it. SIGH. Let\'s start over."
                     self.FLAG_remember_last_movie = True
-                    self.saved_movie = input_titles
+                    self.saved_movie = [self.titles[i][0] for i in indexes]
                     self.saved_sentiment = input_sentiment
                     self.FLAG_expecting_clarification = True
                     return "I found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
 
-                # NO
+                # NO (4)
                 else:
-                    # are we clarifying AKA we need to disambiguate?
+                    # 5) are we clarifying AKA we need to disambiguate?
                     # Yes
                     if self.FLAG_expecting_clarification:
-                        clarified_results = self.disambiguate(line, matching_movies)
-                        # one choice left?
+                        matching_movies_index = self.convert_titles_to_index(self.saved_movie)
+                        clarified_results = self.disambiguate(line, matching_movies_index)
+                        # 6) one choice left?
                         # yep
-                        if len(clarified_results) == 1:
-                            self.update_user_ratings(clarified_results, input_sentiment)
-<<<<<<< HEAD
+                        if len(clarified_results) == 1 or self.FLAG_expecting_clarification is False:
+                            self.update_user_ratings([self.titles[i]
+                                                      for i in clarified_results], input_sentiment)
                             print('UPDATED RATINGS with', clarified_results)
                             self.printFlags()
                             # self.FLAG_expecting_clarification = False
                             self.reset_flags()
-                            return("So you {} {}, huh? What's another movie you've seen?".format(
-                                "liked" if input_sentiment > 0 else "didn't like",
-                                self.titles[clarified_results[0]][0]))
-=======
-                            self.FLAG_expecting_clarification = True
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
-                        # nope
+                            return self.check_do_we_have_enough_ratings(input_sentiment, input_titles)
+                        # nope (6)
                         else:
                             self.FLAG_remember_last_movie = True
                             self.NUM_FLAG_asked_for_clarification += 1
@@ -291,12 +288,12 @@ class Chatbot:
                                 self.reset_flags()
                                 return "I asked you for clarification 3 times already and you still don\'t seem to get it. SIGH. Let\'s start over."
                             self.saved_sentiment = input_sentiment
-                            self.FLAG_expecting_clarification = True
+                            # We really don't need this, because it would still be true, unless we changed it elsewhere
+                            # self.FLAG_expecting_clarification = True
                             if not clarified_results:
                                 # will only be None if wrong date is given
-                                indexes = matching_movies
+                                indexes = matching_movies_index
                                 # couldn't find any references to a specific movie in user's input
-<<<<<<< HEAD
                                 response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([
                                                                                                                                                                                                 self.titles[i][0] for i in indexes])
                             else:
@@ -304,49 +301,51 @@ class Chatbot:
                                 self.saved_movie = [self.titles[i][0] for i in clarified_results]
                                 response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year! {}".format([
                                     self.titles[i][0] for i in clarified_results])
-=======
-                                response = "Sorry, I couldn't tell which one you were referring to. Could you clarify which one you meant? Give me the year or a piece of the title! {}".format([self.titles[i][0] for i in indexes])
-                            else:
-                                # found multiple references to a movie in user's input
-                                indexes =  clarified_results
-                                self.saved_movie = [self.titles[i][0] for i in indexes]
-                                response = "Hmmm.. I didn\'t understand what you were referring to. Could you clarify? Maybe give me a year! {}".format([self.titles[i][0] for i in indexes])
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
                             return response
-                    # If have enough ratings, give recommendations TODO: update so give rec one at a time
-                    '''
-                    if input_sentiment == 0:
-                        response = "I can't tell how you felt about {}. Tell me more about it.".format(
-                            input_titles)
-                        self.FLAG_remember_last_movie = True
-                        self.saved_movie = input_titles
-                    '''
-                    # Nope, we're not clarifying
-                    self.update_user_ratings(input_titles, input_sentiment)
 
-                    # Now checks to see whether we have enough to recommend
-                    if self.num_user_ratings >= self.ratings_threshold:
-                        recommendations = self.recommend(
-                            self.user_ratings, self.ratings, 5)
-                        response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
-                            "liked" if input_sentiment > 0 else "didn't like",
-                            input_titles,
-                            recommendations)
-                        self.num_user_ratings = 0
-                    # If don't have enough ratings, ask for more
-                    else:
-                        response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
-                            "liked" if input_sentiment > 0 else "didn't like",
-                            input_titles)
-                        self.reset_flags()
+                    # Nope, (5) we're not clarifying
+                    self.update_user_ratings(input_titles, input_sentiment)
+                    print('step 5, updated user ratings with: ', input_titles)
+                    return self.check_do_we_have_enough_ratings(input_sentiment, input_titles)
+
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
         return response
 
+    def check_do_we_have_enough_ratings(self, input_sentiment, input_titles):
+        # If have enough ratings, give recommendations TODO: update so give rec one at a time
+        # Now checks to see whether we have enough to recommend
+        if self.num_user_ratings >= self.ratings_threshold:
+            recommendations = self.recommend(
+                self.user_ratings, self.ratings, 5)
+            response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
+                "liked" if input_sentiment > 0 else "didn't like",
+                [self.titles[i][0] for i in self.find_movies_by_title(input_titles)],
+                recommendations)
+            print("check a")
+            self.num_user_ratings = 0
+        # If don't have enough ratings, ask for more
+        else:
+            response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
+                "liked" if input_sentiment > 0 else "didn't like",
+                [self.titles[i][0] for i in self.find_movies_by_title(input_titles)])
+            self.reset_flags()
+            print('check b')
+        return response
+
+    # Ty
+    # INPUT: list of STRING titles; OUTPUT: list of respective index
+    def convert_titles_to_index(self, listOfTitles):
+        ret = []
+        for i in listOfTitles:
+            for index in self.find_movies_by_title(i):
+                ret.append(index)
+        return ret
     # Michelle:
     # Updates user ratings for given movie titles with given sentiment,
     # also increases num_user_ratings appropriately
+
     def update_user_ratings(self, titles, sentiment_score):
         for title in titles:
             movie_indexes = self.find_movies_by_title(title)
@@ -676,27 +675,14 @@ class Chatbot:
         a = str(a)
         b = str(b)
         how_many_words_are_the_same = 0
-<<<<<<< HEAD
         a = re.sub(r'[^\w\s]', '', a)
         b = re.sub(r'[^\w\s]', '', b)
-=======
-        print(a)
-        print(b)
-        a = re.sub(r'[^\w\s]',' ',a)
-        b = re.sub(r'[^\w\s]',' ',b)
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
-        print(a)
-        print(b)
         A = a.split(" ")
         B = b.split(" ")
         for i in range(len(A)):
             for j in range(len(B)):
                 if A[i] == B[j]:
                     how_many_words_are_the_same += 1
-<<<<<<< HEAD
-        print(how_many_words_are_the_same)
-=======
->>>>>>> 582ab414235aaeaa6df5e2dc996ee2eff57a32a0
         return how_many_words_are_the_same
 
     def disambiguate(self, clarification, candidates):
@@ -731,8 +717,12 @@ class Chatbot:
                     ret.append(val[1])
             return ret
         greatestSubstring = [0 for i in range(len(candidates))]
+        arr = clarification.split(" ")
+        if 'all' in arr or 'everything' in arr:
+            self.FLAG_expecting_clarification = False
+            return candidates
         # case 2: more info on movie title and comparison
-        # regexp = re.compile(clarification)
+        # longest_substring_length IS ACTUALLY matching by number of WORDS
         for ind, i in enumerate(candidates):
             title_str = self.titles[i]
             lower_title = self.titles[i][0].lower()
