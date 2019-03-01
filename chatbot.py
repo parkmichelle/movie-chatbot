@@ -65,6 +65,20 @@ class Chatbot:
         # Number of user ratings we require before recommending movies
         self.ratings_threshold = 5
 
+        arousal_added = ["amazing", "awesome", "incredible"] # words that aren't in file that should be, manual add
+        fname = "deps/final.txt"
+        fin = open(fname)
+        self.arousal_dict = {}
+        for line in fin:
+            arr = line.split(":")
+            if (len(arr) < 3):
+                continue
+            word = arr[0].strip()
+            self.arousal_dict[word] = float(arr[2].strip())
+        fin.close()
+        for word in arousal_added:
+            self.arousal_dict[word] = 0.8
+
         # Michelle
         # Map {title : (date, index into self.titles)}, use to search for movie indexes
         self.title_index = dict()
@@ -223,8 +237,9 @@ class Chatbot:
                     return "Hey, sorry, but I don't think I've heard of that movie before, so I wouldn't be able to recommend another movie based on that one (sad face)...\n Do you have another movie you want to talk about?"
                 if bool(set(self.LIST_movies_user_already_inputted).intersection(set(input_titles))):
                     self.COUNT_invalid_user_resp += 1
-                    return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
-                return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
+                    return "Ugh not to be mean but I told you this before... like {} times...I haven\'t heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
+                return "Hey, this is also a movie I haven\'t heard before... My knowledge box doesn't go that far unfortunately..."
+            # yes we can find it
                 '''
             if 1 == 0:
                 print('math is a lie')
@@ -299,7 +314,7 @@ class Chatbot:
                             else:
                                 # found multiple references to a movie in user's input
                                 self.saved_movie = [self.titles[i][0] for i in clarified_results]
-                                response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year! {}".format([
+                                response = "Hmmm.. I didn\'t quite narrow down what you were referring to. Could you help me narrow it down? Maybe give me a year or a piece of the title! {}".format([
                                     self.titles[i][0] for i in clarified_results])
                             return response
 
@@ -319,14 +334,16 @@ class Chatbot:
         if self.num_user_ratings >= self.ratings_threshold:
             recommendations = self.recommend(
                 self.user_ratings, self.ratings, 5)
-            response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
+            response = "So you {}{} {}, huh? Here are some recommendations! You should watch {}".format(
+                "reaaaally " if input_sentiment == 2 or input_sentiment == -2 else "",
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)],
                 [self.titles[i][0] for i in recommendations])
             self.num_user_ratings = 0
         # If don't have enough ratings, ask for more
         else:
-            response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
+            response = "So you {}{} {}, huh? Tell me about another movie you've seen.".format(
+                "reaaaally " if input_sentiment == 2 or input_sentiment == -2 else "",
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)])
             self.reset_flags()
@@ -528,20 +545,23 @@ class Chatbot:
         pos_count = 0
         neg_count = 0
         negation_words = [self.p.stem(word) for word
-                          in ["not", "didn\'t", "never", "don\'t", "dont", "didnt"]]
+                          in ["not", "didn\'t", "never", "don\'t", "wasn\'t", "wasnt", "dont", "didnt"]]
         emphasize_words = [self.p.stem(word) for word
-                           in ["really", "so", "very", "extremely", "seriously"]]
+                           in ["really", "super", "so", "very", "extremely", "seriously", "quite"]]
         should_flip = False
         should_emphasize = False
         arousal = 1
         for word in text.split(" "):
             if word in negation_words:
                 should_flip = True
-            elif word in emphasize_words and not should_flip:  # don't catch "don't really like"
+            elif self.creative and word in emphasize_words and not should_flip:  # don't catch "don't really like"
                 should_emphasize = True
                 arousal = 2
             elif word in self.sentiment:
                 s = self.sentiment[word]
+                if self.creative and word in self.arousal_dict and not should_flip:
+                    if self.arousal_dict[word] > 0.6:
+                        arousal = 2
                 if should_flip:
                     s = 'pos' if s == 'neg' else 'neg'
                     should_flip = False
@@ -558,14 +578,12 @@ class Chatbot:
                     print("ERROR: Got brand new sentiment")
         diff = pos_count - neg_count
         if diff == 0:
-            for word in negation_words:  # TODO:  need to check this
-                if word in text:
-                    return -1
             result = 0  # neutral
         elif diff > 0:
             result = diff if diff <= 2 else 2  # positive
         else:
             result = diff if diff >= -2 else -2  # positive
+        print("SENTIMENT = {}".format(result))
         return result
 
     def extract_sentiment_for_movies(self, text):
@@ -581,6 +599,7 @@ class Chatbot:
         :returns: a list of tuples, where the first item in the tuple is a movie title,
         and the second is the sentiment in the text toward that movie
         """
+        negation_words = ["not", "didn't", "never"]
         result = []
         # text = text.lower()
         all_movies = self.findStringWithinPunc(text, "\"", "\"")
@@ -594,19 +613,37 @@ class Chatbot:
             end_movie_name_idx = index + len(all_movies[i])
             sentiment2 = 0
             sentiment_final = 0
+            print(txt1)
+           
             if i + 1 < len(all_movies):
                 txt2 = text[end_movie_name_idx: indices[i+1]]
                 sentiment2 = self.extract_sentiment(txt2)
+                print(txt2)
             else:  # at the end
                 txt2 = text[end_movie_name_idx:]
                 sentiment2 = self.extract_sentiment(txt2)
+                print(txt2)
+            
             if sentiment1 != 0:
                 sentiment_final = sentiment1
             elif sentiment2 != 0:
                 sentiment_final = sentiment2
             else:
-                sentiment_final = before_sentiment
-            if before_sentiment == 0:
+
+                flip_emotion = False
+                # print("Before sentiment is: {}".format(before_sentiment))
+                arr_txt = txt1.split(" ")
+                for word in arr_txt:
+                    if word.strip() in negation_words:
+                        flip_emotion = True
+                        break
+                if flip_emotion:
+                    if before_sentiment == -1:
+                        sentiment_final = 1
+                    elif before_sentiment == 1:
+                        sentiment_final = -1
+                # print("Final Sentiment: {}".format(sentiment_final))
+            if sentiment_final != 0:
                 before_sentiment = sentiment_final
             movie_to_sentiment[all_movies[i]] = sentiment_final
             for item in movie_to_sentiment:
@@ -681,6 +718,7 @@ class Chatbot:
             for j in range(len(B)):
                 if A[i] == B[j]:
                     how_many_words_are_the_same += 1
+        print(how_many_words_are_the_same)
         return how_many_words_are_the_same
 
     def disambiguate(self, clarification, candidates):
@@ -801,7 +839,7 @@ class Chatbot:
         #############################################################################
 
     def nonMovieSentiment(self, user_entry):
-        fname = "deps/emotion_lexicon.txt"
+        fname = "deps/final.txt"
         fin = open(fname)
         word_to_vec = {}
         for line in fin:
