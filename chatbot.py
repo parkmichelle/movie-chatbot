@@ -272,9 +272,9 @@ class Chatbot:
                         clarified_results = self.disambiguate(line, matching_movies_index)
                         # 6) one choice left?
                         # yep
+                        input_titles = [self.titles[i] for i in clarified_results]
                         if len(clarified_results) == 1 or self.FLAG_expecting_clarification is False:
-                            self.update_user_ratings([self.titles[i]
-                                                      for i in clarified_results], input_sentiment)
+                            self.update_user_ratings(input_titles, input_sentiment)
                             print('UPDATED RATINGS with', clarified_results)
                             self.printFlags()
                             # self.FLAG_expecting_clarification = False
@@ -322,8 +322,7 @@ class Chatbot:
             response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)],
-                recommendations)
-            print("check a")
+                [self.titles[i][0] for i in recommendations])
             self.num_user_ratings = 0
         # If don't have enough ratings, ask for more
         else:
@@ -331,7 +330,6 @@ class Chatbot:
                 "liked" if input_sentiment > 0 else "didn't like",
                 [self.titles[i][0] for i in self.find_movies_by_title(input_titles)])
             self.reset_flags()
-            print('check b')
         return response
 
     # Ty
@@ -711,16 +709,19 @@ class Chatbot:
         possibleIndexes = [x[1] for x in self.title_index[title]]
         ret = []
         # if there are many movies with the same titles (the intersection has more than 1)
+        '''
         if len(set(possibleIndexes).intersection(set(candidates))) > 1:
             for val in self.title_index[title]:
                 if val[0] == clarification:
                     ret.append(val[1])
             return ret
+            '''
         greatestSubstring = [0 for i in range(len(candidates))]
         arr = clarification.split(" ")
         if 'all' in arr or 'everything' in arr:
             self.FLAG_expecting_clarification = False
             return candidates
+
         # case 2: more info on movie title and comparison
         # longest_substring_length IS ACTUALLY matching by number of WORDS
         for ind, i in enumerate(candidates):
