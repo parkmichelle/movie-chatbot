@@ -141,12 +141,12 @@ class Chatbot:
         the helper functions you write later in this class.
 
         Takes the input string from the REPL and call delegated functions that
-          1) extract the relevant information, and
-          2) transform the information into a response to the user.
+        1) extract the relevant information, and
+        2) transform the information into a response to the user.
 
         Example:
-          resp = chatbot.process('I loved "The Notebok" so much!!')
-          print(resp) // prints 'So you loved "The Notebook", huh?'
+        resp = chatbot.process('I loved "The Notebok" so much!!')
+        print(resp) // prints 'So you loved "The Notebook", huh?'
 
         :param line: a user-supplied line of text
         :returns: a string containing the chatbot's response to the user input
@@ -156,93 +156,98 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
-        if self.creative:
-            response = "I processed {} in creative mode!!".format(line)
+    
+        input_titles = self.extract_titles(line)
+        # User already reported a movie, and we need to pass in clarification for movie or sentiment
+        if self.FLAG_remember_last_movie:
+            input_titles = self.saved_movie
+        # Didn't find movie in input
+        if not input_titles: 
+            return self.nonMovieSentiment(line)
+            # return "Sorry, I wasn't able to figure out what movie you're talking about."
+
+        # not in database
+        matching_movies = self.find_movies_by_title(input_titles[0])
+        if  len (matching_movies) < 1:
+            '''
+            self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
+            if self.spellcheck:
+            '''
+            if len(self.LIST_movies_user_already_inputted) == 0:
+                for title in input_titles:
+                    self.LIST_movies_user_already_inputted.append(title)
+                return "Hey, sorry, but I don't think I've heard of that movie before, so I wouldn't be able to recommend another movie based on that one (sad face)...\n Do you have another movie you want to talk about?"
+            if bool(set(self.LIST_movies_user_already_inputted).intersection(set(input_titles))):
+                self.COUNT_invalid_user_resp += 1
+                return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
+            return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
 
         else:
-            input_titles = self.extract_titles(line)
-            # User already reported a movie, and we need to pass in clarification for movie or sentiment
-            if self.FLAG_remember_last_movie:
-                input_titles = self.saved_movie
-            # Didn't find movie in input
-            if not input_titles:
-                return "Sorry, I wasn't able to figure out what movie you're talking about."
+            line_for_sentiment = None
+            line_lower = line.lower()
+            for word in input_titles:
+                line_for_sentiment = line_lower.replace(word.lower(), "")
+            input_sentiment = self.extract_sentiment(line_for_sentiment)
+            # Neutral sentiment found, ask for more emotional sentence
+            if self.saved_sentiment is not None:
+                if self.saved_sentiment != 0:
+                    input_sentiment = self.saved_sentiment
+            if input_sentiment == 0:
+                response = "I can't tell how you felt about {}. Tell me more about it.".format(
+                    input_titles)
+                self.FLAG_remember_last_movie = True
+                self.saved_movie = input_titles
 
-            # not in database
-            matching_movies = self.find_movies_by_title(input_titles[0])
-            if  len (matching_movies) < 1:
-                '''
-                self.spellcheck = self.find_movies_closest_to_title(input_titles[0], max_distance=3)
-                if self.spellcheck:
-                '''
-                if len(self.LIST_movies_user_already_inputted) == 0:
-                    for title in input_titles:
-                        self.LIST_movies_user_already_inputted.append(title)
-                    return "Hey, sorry, but I don't think I've heard of that movie before, so I wouldn't be able to recommend another movie based on that one (sad face)...\n Do you have another movie you want to talk about?"
-                if bool(set(self.LIST_movies_user_already_inputted).intersection(set(input_titles))):
-                    self.COUNT_invalid_user_resp += 1
-                    return "I told you this before... like {} times...I don't think I've heard of the movie you just typed, so I wouldn't be able to recommend another movie based on that one...or your spelling of the movie is just way off so I have no idea what it is.\n Do you have another movie you want to talk about?".format(self.COUNT_invalid_user_resp)
-                return "Hey, this is also a movie I haven't heard before... My knowledge box doesn't go that far unfortunately..."
+            # Tries to disambugate, if it hasn't been
+            if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 1:
+                indexes = matching_movies
+                self.NUM_FLAG_asked_for_clarification += 1
+                self.FLAG_remember_last_movie = True
 
+                self.saved_movie = input_titles
+                self.saved_sentiment = input_sentiment
+                return "I found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
+
+            # Positive or negative sentiment found, process it
             else:
-                line_for_sentiment = None
-                line_lower = line.lower()
-                for word in input_titles:
-                    line_for_sentiment = line_lower.replace(word.lower(), "")
-                input_sentiment = self.extract_sentiment(line_for_sentiment)
-                # Neutral sentiment found, ask for more emotional sentence
-                if self.saved_sentiment is not None:
-                    if self.saved_sentiment != 0:
-                        input_sentiment = self.saved_sentiment
+                if self.NUM_FLAG_asked_for_clarification == 1:
+                    self.NUM_FLAG_asked_for_clarification += 1
+                    self.disambiguate(
+                        line, matching_movies)
+                self.update_user_ratings(input_titles, input_sentiment)
+                # If have enough ratings, give recommendations TODO: update so give rec one at a time
                 if input_sentiment == 0:
                     response = "I can't tell how you felt about {}. Tell me more about it.".format(
                         input_titles)
                     self.FLAG_remember_last_movie = True
                     self.saved_movie = input_titles
 
-                # Tries to disambugate, if it hasn't been
-                if (len(input_titles) > 1 or len(matching_movies) > 1) and self.NUM_FLAG_asked_for_clarification < 1:
-                    indexes = matching_movies
-                    self.NUM_FLAG_asked_for_clarification += 1
-                    self.FLAG_remember_last_movie = True
-
-                    self.saved_movie = input_titles
-                    self.saved_sentiment = input_sentiment
-                    return "I found multiple movies you could be talking about. Which one did you mean? {}".format([self.titles[i][0] for i in indexes])
-
-                # Positive or negative sentiment found, process it
+                elif self.num_user_ratings >= self.ratings_threshold:
+                    recommendations = self.recommend(
+                        self.user_ratings, self.ratings, 5)
+                    recommendations_copy = recommendations
+                    recommendations = ""
+                    for  idx, rec in enumerate(recommendations_copy):
+                        if idx != len(recommendations_copy)-1 :
+                            recommendations  = recommendations + " "+self.titles[rec][0]+ "," 
+                        else:
+                            recommendations = recommendations +" and "+ self.titles[rec][0] + "."
+                    response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
+                        "liked" if input_sentiment > 0 else "didn't like",
+                        input_titles,
+                        recommendations)
+                    self.num_user_ratings = 0
+                # If don't have enough ratings, ask for more
                 else:
-                    if self.NUM_FLAG_asked_for_clarification == 1:
-                        self.NUM_FLAG_asked_for_clarification += 1
-                        self.disambiguate(
-                            line, matching_movies)
-                    self.update_user_ratings(input_titles, input_sentiment)
-                    # If have enough ratings, give recommendations TODO: update so give rec one at a time
-                    if input_sentiment == 0:
-                        response = "I can't tell how you felt about {}. Tell me more about it.".format(
-                            input_titles)
-                        self.FLAG_remember_last_movie = True
-                        self.saved_movie = input_titles
-
-                    elif self.num_user_ratings >= self.ratings_threshold:
-                        recommendations = self.recommend(
-                            self.user_ratings, self.ratings, 5)
-                        response = "So you {} {}, huh? Here are some recommendations! You should watch {}".format(
-                            "liked" if input_sentiment > 0 else "didn't like",
-                            input_titles,
-                            recommendations)
-                        self.num_user_ratings = 0
-                    # If don't have enough ratings, ask for more
-                    else:
-                        response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
-                            "liked" if input_sentiment > 0 else "didn't like",
-                            input_titles)
-                        self.clarification = None
-                        self.saved_movie = None
-                        self.saved_sentiment = None
-                        self.FLAG_remember_last_movie = False
-                        self.FLAG_remember_last_sentiment = False
-                        self.NUM_FLAG_asked_for_clarification = 0
+                    response = "So you {} {}, huh? Tell me about another movie you've seen.".format(
+                        "liked" if input_sentiment > 0 else "didn't like",
+                        input_titles)
+                    self.clarification = None
+                    self.saved_movie = None
+                    self.saved_sentiment = None
+                    self.FLAG_remember_last_movie = False
+                    self.FLAG_remember_last_sentiment = False
+                    self.NUM_FLAG_asked_for_clarification = 0
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -272,8 +277,8 @@ class Chatbot:
         of all movie titles you've extracted from the text.
 
         Example:
-          potential_titles = chatbot.extract_titles('I liked "The Notebook" a lot.')
-          print(potential_titles) // prints ["The Notebook"]
+        potential_titles = chatbot.extract_titles('I liked "The Notebook" a lot.')
+        print(potential_titles) // prints ["The Notebook"]
 
         :param text: a user-supplied line of text that may contain movie titles
         :returns: list of movie titles that are potentially in the text
@@ -305,6 +310,7 @@ class Chatbot:
                 for i in range(1, number_of_groups + 1):
                     if matches.group(i) != None:
                         result.append(matches.group(i).strip())
+        print(result)
         return result
     # This method finds a strings within 2 punctuations and returns an array of those strings. You need to specify the start and end punctuations
 
@@ -374,8 +380,8 @@ class Chatbot:
         that contains the index of that matching movie.
 
         Example:
-          ids = chatbot.find_movies_by_title('Titanic')
-          print(ids) // prints [1359, 1953]
+        ids = chatbot.find_movies_by_title('Titanic')
+        print(ids) // prints [1359, 1953]
 
         :param title: a string containing a movie title
         :returns: a list of indices of matching movies
@@ -440,8 +446,8 @@ class Chatbot:
         is super negative and +2 if the sentiment of the text is super positive.
 
         Example:
-          sentiment = chatbot.extract_sentiment('I liked "The Titanic"')
-          print(sentiment) // prints 1
+        sentiment = chatbot.extract_sentiment('I liked "The Titanic"')
+        print(sentiment) // prints 1
 
         :param text: a user-supplied line of text
         :returns: a numerical value for the sentiment of the text
@@ -471,7 +477,7 @@ class Chatbot:
                 else:
                     # shouldn't reach here but just in case
                     print("ERROR, need to handle. Got new sentiment: " +
-                          self.sentiment[word])
+                        self.sentiment[word])
         diff = pos_count - neg_count
         if diff == 0:
             for word in negation_words:  # TODO:  need to check this
@@ -493,12 +499,12 @@ class Chatbot:
         Hint: feel free to call previously defined functions to implement this.
 
         Example:
-          sentiments = chatbot.extract_sentiment_for_text('I liked both "Titanic (1997)" and "Ex Machina".')
-          print(sentiments) // prints [("Titanic (1997)", 1), ("Ex Machina", 1)]
+        sentiments = chatbot.extract_sentiment_for_text('I liked both "Titanic (1997)" and "Ex Machina".')
+        print(sentiments) // prints [("Titanic (1997)", 1), ("Ex Machina", 1)]
 
         :param text: a user-supplied line of text
         :returns: a list of tuples, where the first item in the tuple is a movie title,
-          and the second is the sentiment in the text toward that movie
+        and the second is the sentiment in the text toward that movie
         """
         result = []
         # text = text.lower()
@@ -547,12 +553,12 @@ class Chatbot:
 
         - If no movies have titles within max_distance of the provided title, return an empty list.
         - Otherwise, if there's a movie closer in edit distance to the given title
-          than all other movies, return a 1-element list containing its index.
+        than all other movies, return a 1-element list containing its index.
         - If there is a tie for closest movie, return a list with the indices of all movies
-          tying for minimum edit distance to the given movie.
+        tying for minimum edit distance to the given movie.
 
         Example:
-          chatbot.find_movies_closest_to_title("Sleeping Beaty") # should return [1656]
+        chatbot.find_movies_closest_to_title("Sleeping Beaty") # should return [1656]
 
         :param title: a potentially misspelled title
         :param max_distance: the maximum edit distance to search for
@@ -603,7 +609,7 @@ class Chatbot:
         with the indices it could be referring to (to continue the disambiguation dialogue).
 
         Example:
-          chatbot.disambiguate("1997", [1359, 2716]) should return [1359]
+        chatbot.disambiguate("1997", [1359, 2716]) should return [1359]
 
         :param clarification: user input intended to disambiguate between the given movies
         :param candidates: a list of movie indices
@@ -707,6 +713,40 @@ class Chatbot:
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
+    def nonMovieSentiment(self, user_entry):
+        fname = "deps/emotion_lexicon.txt"
+        fin = open(fname)
+        word_to_vec = {}
+        for line in fin:
+                arr = line.split(":")
+                word = arr[0].strip()
+                word_to_vec[word]=arr[1].strip()
+        fin.close()
+        emotion_arr = ["anger", "disgust", "fear", "joy", "sadness", "surprise"]
+        neg_emotion_resp = {"anger": "Sorry if I made you angry. Just wanted to help",
+                        "disgust": "Sorry if that was disgusting.",
+                        "fear": "Am sorry that I scared you",
+                        "sadness": "Things will get better soon. Tough times do not last, but tough people like YOU do!",
+                        "joy": "Yess. It gives me a lot of joy to do my work",
+                        "surprise": "I got you!"}
+        user_entry = user_entry.strip(punctuation)
+        list_of_words = user_entry.split(" ")
+        emotion_to_count = {}
+        for word in emotion_arr:
+                emotion_to_count[word] = 0
+        for word in list_of_words:
+                if word.strip() not in word_to_vec: continue
+                emotion_vec = word_to_vec[word.strip()]
+                for idx, char in enumerate(emotion_vec):
+                        emotion_to_count[emotion_arr[idx]] += int(char)
+        most_likely_emotion = max(emotion_to_count, key = emotion_to_count.get)
+        response = neg_emotion_resp[most_likely_emotion]
+        areAllZeros = True
+        for item  in emotion_to_count:
+                if emotion_to_count[item] > 0: areAllZeros = False
+        if areAllZeros:
+                response = "Sorry, I wasn't able to figure out what movie you're talking about. Let's try this again"
+        return response
 
     def recommend(self, user_ratings, ratings_matrix, k=10, creative=False):
         """Generate a list of indices of movies to recommend using collaborative filtering.
@@ -719,12 +759,12 @@ class Chatbot:
 
         :param user_ratings: a binarized 1D numpy array of the user's movie ratings
         :param ratings_matrix: a binarized 2D numpy matrix of all ratings, where
-          `ratings_matrix[i, j]` is the rating for movie i by user j
+        `ratings_matrix[i, j]` is the rating for movie i by user j
         :param k: the number of recommendations to generate
         :param creative: whether the chatbot is in creative mode
 
         :returns: a list of k movie indices corresponding to movies in ratings_matrix,
-          in descending order of recommendation
+        in descending order of recommendation
         """
 
         #######################################################################################
@@ -762,8 +802,8 @@ class Chatbot:
         # Populate this list with k movie indices to recommend to the user.
         recommendations = []
         for i in range(0, k):
-            recommendations.append(scores[i][1])
-
+            idx = scores[i][1]
+            recommendations.append( idx   )
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -791,13 +831,15 @@ class Chatbot:
         """
         return  "TODO"
         """
-      Your task is to implement the chatbot as detailed in the PA6 instructions.
-      Remember: in the starter mode, movie names will come in quotation marks and
-      expressions of sentiment will be simple!
-      Write here the description for your own chatbot!
-      """
+    Your task is to implement the chatbot as detailed in the PA6 instructions.
+    Remember: in the starter mode, movie names will come in quotation marks and
+    expressions of sentiment will be simple!
+    Write here the description for your own chatbot!
+    """
 
 
 if __name__ == '__main__':
     print('To run your chatbot in an interactive loop from the command line, run:')
     print('    python3 repl.py')
+
+
