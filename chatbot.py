@@ -155,21 +155,12 @@ class Chatbot:
         self.NUM_FLAG_asked_for_clarification = 0
         self.FLAG_expecting_clarification = False
 
-    def printFlags(self):
-        print("CLARIFICATION", self.clarification)
-        print("saved movie", self.saved_movie)
-        print("saved sentiment", self.saved_sentiment)
-        print("remember last movie?", self.FLAG_remember_last_movie)
-        print("number of times asked for clarification", "", self.NUM_FLAG_asked_for_clarification)
-        print("expecting clarification?", self.FLAG_expecting_clarification)
-        print("num of user ratings", self.num_user_ratings)
-    
     def inputTowardsBot(self, line):
         line = line.lower()
         arr = line.split(" ")
         if arr[0].strip() == "i" and arr[1].strip == "am": return True
         if "bot" in arr: return True
-        possible_bot_lines = ["i like you", "i hate you"]
+        possible_bot_lines = ["i like you", "i love you", "i don\'t like you", "i dont like you", "you\'re the worst", "youre the worst", "you suck", "i hate you"]
         if line.strip() in possible_bot_lines : return True
         if len(line) >= 7 and line[0:7] == "you are": return True
         return False
@@ -193,8 +184,6 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
-        print('BEGINNING:')
-        self.printFlags()
         input_titles = self.extract_titles(line)
 
         # 0) Is Movie flag saved on?
@@ -206,12 +195,9 @@ class Chatbot:
         # NO
         if not input_titles or self.inputTowardsBot(line):
             return self.nonMovieSentiment(line)
-            # return "Sorry, I wasn't able to figure out what movie you're talking about."
 
         # 2) Can we find it
-        print("input titles {}".format(input_titles))
         matching_movies_index = self.convert_titles_to_index(input_titles)
-        print("matching_movies_index: ", matching_movies_index)
 
         # No (2) we can't
         if len(matching_movies_index) < 1:
@@ -253,7 +239,7 @@ class Chatbot:
             # yes we can find it
                 '''
             if 1 == 0:
-                print('math is a lie')
+                pass
             # YES (2) we can find it
             else:
                 line_for_sentiment = None
@@ -270,10 +256,10 @@ class Chatbot:
                 # 3b) neutral sentiment?
                 # YES, REPROMPT!!!
                 if input_sentiment == 0:
-                    response = "I can't tell how you felt about {}. Tell me more about it.".format(
-                        input_titles)
                     self.FLAG_remember_last_movie = True
                     self.saved_movie = input_titles
+                    return "I can't tell how you felt about {}. Tell me more about it.".format(
+                        input_titles)
 
                 # 4) MORE THAN ONE MOVIE POSSIBLE?/ we haven't annoyed them with clarification/ Not expecting clarification??
                 # YES, reprompt with clarifying questions
@@ -301,8 +287,6 @@ class Chatbot:
                         input_titles = [self.titles[i] for i in clarified_results]
                         if len(clarified_results) == 1 or self.FLAG_expecting_clarification is False:
                             self.update_user_ratings(input_titles, input_sentiment)
-                            print('UPDATED RATINGS with', clarified_results)
-                            self.printFlags()
                             # self.FLAG_expecting_clarification = False
                             self.reset_flags()
                             return self.check_do_we_have_enough_ratings(input_sentiment, input_titles)
@@ -331,7 +315,6 @@ class Chatbot:
 
                     # Nope, (5) we're not clarifying
                     self.update_user_ratings(input_titles, input_sentiment)
-                    print('step 5, updated user ratings with: ', input_titles)
                     input_titles = [self.titles[i] for i in matching_movies_index]
                     return self.check_do_we_have_enough_ratings(input_sentiment, input_titles)
 
@@ -422,7 +405,6 @@ class Chatbot:
                 for i in range(1, number_of_groups + 1):
                     if matches.group(i) != None:
                         result.append(matches.group(i).strip())
-        print("extracted title: ", result)
         return result
     # This method finds a strings within 2 punctuations and returns an array of those strings. You need to specify the start and end punctuations
 
@@ -531,13 +513,11 @@ class Chatbot:
         if len(matches) == 0:
             for i in self.find_movies_closest_to_title(title, max_distance=3):
                 matches.append(self.titles[i][0])
-                print(matches)
             if len(matches) != 0:
                 newTitles = []
                 for i in matches:
                     result.append(self.find_movies_by_title(i)[0])
                     newTitles.append(i)
-                print('newtitles', newTitles)
                 self.input_title = newTitles
                 return result
         if target_date is not None:
@@ -598,9 +578,6 @@ class Chatbot:
                     neg_count += arousal
                     if should_emphasize:
                         arousal = 1
-                else:
-                    # shouldn't reach here but just in case
-                    print("ERROR: Got brand new sentiment")
         diff = pos_count - neg_count
         if diff == 0:
             result = 0  # neutral
@@ -608,7 +585,6 @@ class Chatbot:
             result = diff if diff <= 2 else 2  # positive
         else:
             result = diff if diff >= -2 else -2  # positive
-        print("SENTIMENT = {}".format(result))
         return result
 
     def extract_sentiment_for_movies(self, text):
@@ -638,16 +614,13 @@ class Chatbot:
             end_movie_name_idx = index + len(all_movies[i])
             sentiment2 = 0
             sentiment_final = 0
-            print(txt1)
 
             if i + 1 < len(all_movies):
                 txt2 = text[end_movie_name_idx: indices[i+1]]
                 sentiment2 = self.extract_sentiment(txt2)
-                print(txt2)
             else:  # at the end
                 txt2 = text[end_movie_name_idx:]
                 sentiment2 = self.extract_sentiment(txt2)
-                print(txt2)
 
             if sentiment1 != 0:
                 sentiment_final = sentiment1
@@ -656,7 +629,6 @@ class Chatbot:
             else:
 
                 flip_emotion = False
-                # print("Before sentiment is: {}".format(before_sentiment))
                 arr_txt = txt1.split(" ")
                 for word in arr_txt:
                     if word.strip() in negation_words:
@@ -667,7 +639,6 @@ class Chatbot:
                         sentiment_final = 1
                     elif before_sentiment == 1:
                         sentiment_final = -1
-                # print("Final Sentiment: {}".format(sentiment_final))
             if sentiment_final != 0:
                 before_sentiment = sentiment_final
             movie_to_sentiment[all_movies[i]] = sentiment_final
@@ -743,7 +714,6 @@ class Chatbot:
             for j in range(len(B)):
                 if A[i] == B[j]:
                     how_many_words_are_the_same += 1
-        print(how_many_words_are_the_same)
         return how_many_words_are_the_same
 
     def disambiguate(self, clarification, candidates):
@@ -875,12 +845,12 @@ class Chatbot:
         fin.close()
         normal_resp = "Now, tell me about a movie you have seen ..."
         emotion_arr = ["anger", "disgust", "fear", "joy", "sadness", "surprise"]
-        neg_emotion_resp = {"anger": "Sorry if I made you angry. Just wanted to help."+normal_resp,
-                            "disgust": "Sorry if that was disgusting."+normal_resp,
-                            "fear": "Am sorry that I scared you."+normal_resp,
-                            "sadness": "Things will get better soon. Tough times do not last, but tough people like YOU do!"+normal_resp,
-                            "joy": "Yess. It gives me a lot of joy to do my work"+normal_resp,
-                            "surprise": "I got you!"+normal_resp}
+        neg_emotion_resp = {"anger": "Sorry if I made you angry. Just wanted to help. "+normal_resp,
+                            "disgust": "Sorry if that was disgusting. "+normal_resp,
+                            "fear": "Am sorry that I scared you. "+normal_resp,
+                            "sadness": "Things will get better soon. Tough times do not last, but tough people like YOU do! "+normal_resp,
+                            "joy": "Yess. It gives me a lot of joy to do my work. "+normal_resp,
+                            "surprise": "I got you! "+normal_resp}
         user_entry = user_entry.strip(punctuation)
         list_of_words = user_entry.split(" ")
         emotion_to_count = {}
@@ -892,9 +862,7 @@ class Chatbot:
             emotion_vec = word_to_vec[word.strip()]
             for idx, char in enumerate(emotion_vec):
                 emotion_to_count[emotion_arr[idx]] += int(char)
-        print(emotion_to_count)
         most_likely_emotion = max(emotion_to_count, key=emotion_to_count.get)
-        # print(most_likely_emotion)
         response = neg_emotion_resp[most_likely_emotion]
         areAllZeros = True
         for item in emotion_to_count:
@@ -988,14 +956,14 @@ class Chatbot:
         Consider adding to this description any information about what your chatbot
         can do and how the user can interact with it.
         """
-        arrayOfFeatures = ['Identifying movies without quotation marks and correct capitalization (part 1)',
-                           'Identifying movies without quotation marks and correct capitalization (part 2)',
-                           'Spell-correcting fallback for find_movies_by_title. Returns indices of movies with least edit distance from title, of distance at most max_distance.',
-                           'Extracting sentiment with multiple-movie input',
-                           'Disambiguation (part 2) Narrow down from candidates given a user\'s response, such as a substring belonging to the right movie',
-                           'Understanding references to things said previously',
-                           'Identifying and responding to emotions',
-                           'Dialogue for disambiguation (Using your implementation of disambiguate and extension of find_movies_by_title)']
+        arrayOfFeatures = ['Identifying movies without quotation marks and correct capitalization (part 1). Try saying \'I like Titanic\'',
+                           'Identifying movies without quotation marks and correct capitalization (part 2). Try saying \'I like TITANIC\'',
+                           'Spell-correcting fallback for find_movies_by_title. Returns indices of movies with least edit distance from title, of distance at most max_distance. Try saying \'I like Ttanic\'',
+                           'Extracting sentiment with multiple-movie input.',
+                           'Disambiguation (part 2) Narrow down from candidates given a user\'s response, such as a substring belonging to the right movie. Try saying \'I like Titanic\' and then \'1997\' to choose that candidate',
+                           'Understanding references to things said previously. try saying \'I like Titanic\' and then say some other sentiment word like \'hate\'. The bot will remember your first emotion and not be fooled by \'hate\'',
+                           'Identifying and responding to emotions. Try saying \'I love you\' or \'You suck\'',
+                           'Dialogue for disambiguation (Using your implementation of disambiguate and extension of find_movies_by_title). Try saying \'I like Titanic\' and then talk with our bot to clarify your choice!']
         ret = "Master Bot does the following creative features:"
         for i, features in enumerate(arrayOfFeatures):
             ret += '\n {})'.format(i)
